@@ -1,0 +1,65 @@
+#This file should contain the parameters used by the ConTExt pipeline.
+#ConTExt 
+#Lines beginning in # are comments and provide notes on how to specify the fields in this file. 
+#Lines beginning with $ indicate file paths=
+
+#The default values are the settings I used, provided as an example of a correctly 
+#specified file.
+
+#Path to the Bowtie2 executable
+$Bowtie2=/home/mpm289/bowtie2-2.1.0
+
+#Path to the Trimmomatic executable
+$Trimmomatic=/home/mpm289/Trimmomatic-0.33/trimmomatic-0.33.jar
+
+#Path to the Samtools \bin directory
+$Samtools=/bin
+
+#Path to the Bowtie2 index for masked reference genome
+$AssemblyIndex=/home/mpm289/bowtie2-2.1.0/dmel-r6.01_masked_7_8_16
+#Path to the Bowtie2 index for the set of individual repeats and consensus sequences
+$RepeatIndex=/home/mpm289/bowtie2-2.1.0/ins_and_cons_index_7_8_16
+
+$ConversionTable=/data2/mpm289/ReferenceGenomes/Dmel_reference/ins_and_cons_index_7_8_16.tsv
+
+#Path to the reference genome FASTA
+$Ref=/data2/mpm289/ReferenceGenomes/dmel-r6.01_concatenated_7-7-14.fa
+
+#Path to the masked reference genome FASTA
+$Masked=/data2/mpm289/ReferenceGenomes/Dmel_reference/dmel-r6.01_concatenated_masked_7_8_16.fa
+
+#Path to the repeat consensus index FASTA
+$Cons=/data2/mpm289/ReferenceGenomes/Repbase_19.06_DM_7-8-16.fa
+
+#Lines beginning with @ indicate comma-separated lists; do not include line breaks
+#Note= These fields are case-sensitive
+
+#These are the major chromosome assemblies to be used in the parameter choice steps
+@CV=2L,2R,3L,3R,X
+
+#These are the chromosomes to be used for estimating the coverage distribution
+@Cvg=2L,2R,3L,3R,X
+
+#Appropriate clustering parameters need to be inferred from the real data.
+#These are the transposable elements whose euchromatic insertions will comprise the training set
+@Train=BAGGINS1,ROO_LTR,HOBO,DMCR1A
+
+#Lines beginning with % indicate numerical values
+#This is the expected insert size; during insert size estimation, inserts with 
+%Ins=500
+
+#Lines beginning with ! will be formatted as numbers if possible and as strings otherwise
+
+#Clustering behavior
+
+#These are the squareroots of the largest eigenvalues to be considered during covariance matrix choice. They should be larger than the optimal value. May be set to AUTO for automatic choice based on the insert size distribution. 
+
+#If set to AUTO, the parameter will be set equal to the mean gap size, as the optimal parameter is expected to be this divided by the sqrt of 3 
+!Cov1=AUTO
+
+#If set to AUTO, the parameter will be set equal to twice the standard deviation of the gap size distribution
+!Cov2=AUTO
+
+%Cutoff1=.99
+
+%Cutoff2=.97
