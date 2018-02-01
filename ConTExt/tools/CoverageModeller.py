@@ -22,7 +22,7 @@ from Bio import Seq
 from Bio import SeqRecord
 from scipy import optimize
 from matplotlib import pyplot
-
+from General_Tools import *
 
 class ConTExtLine():
     """Class to organize ConTExt lines in a readable way."""
@@ -58,15 +58,7 @@ class ConTExtLine():
             self.threePrime2=self.Start2
             self.fivePrime2=self.End2
 
-def WeightedAverage(weights, items):
-    avg=numpy.nansum(weights*items)
-    return avg
 
-
-def WeightedStdDev(weights, items):
-    avg=WeightedAverage(weights, items)
-    sd=numpy.nansum(weights* (items-avg)**2)**.5
-    return sd
 def ReadDistributions(infile, cutoff=.005):
     """Read the summary of size distributions output by the structure calling pipeline."""
     handle=open(infile,'r')
@@ -451,7 +443,7 @@ def FastHistoKDE_BW(histo, bw, ignore_zero=True, kernel='norm', var_array=[]):
     return u_kde/sum(u_kde)         #Doesn't matter if I divided by bw one too many times... it's still proportional to the correct KDE, so now Imma force it to sum to one.
 
 
-def CV_4(tuple_data, min_bw, max_bw, steps, depth=3, fold=100, cutoff=.99):
+def Cross_validate(tuple_data, min_bw, max_bw, steps, depth=3, fold=100, cutoff=.99):
     """Idea: We have read count distributions for each autosome arm and the X chromosome.
     So, the we can get a sense of the noise in our estimates by comparing the distributions
     of different chromosome arms. Use this to choose a good bandwidth for kernel density estimation."""
@@ -545,7 +537,7 @@ def SmoothCvgByGC(table):
             autosome_list.append(table_at_gc.sum(1)/4.)
             x_list.append(table[i,:,4])
             continue
-        bw=CV_4(table_at_gc, 0, 100, 10, 3)
+        bw=Cross_validate(table_at_gc, 0, 100, 10, 3)
         print "{0}\t{1}".format( i, bw)
         kde_autosome=FastHistoKDE_BW(table_at_gc.sum(1)/4., bw, True)
         kde_x=FastHistoKDE_BW(table[i,:,4], bw, True)
@@ -554,12 +546,7 @@ def SmoothCvgByGC(table):
 ##        print i
     return autosome_list, x_list
 
-#If you want to run this on the cluster, this needs to be commented out.
-#Kevin installed 64-bit Python and it's not compatible with matplotlib
-#This is for visualizing the cvg dists.
-#Table should be the output of WriteCvgHistogramByArray
-#auto_kde, and x_kde are the outputs of SmoothCvgByGC; they may be reformated as numpy arrays
-#Read_depth is  misnamed: It stores the %GC of the slice you want to look at.
+
 import seaborn
 from matplotlib import pyplot
 def PlotCoverageScatters(table, read_depth, auto_kde=[], x_kde=[]):

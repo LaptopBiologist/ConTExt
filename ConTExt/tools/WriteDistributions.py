@@ -213,6 +213,7 @@ def EstimateDistAll(inDir, RefNames):
 def Kernel(u):
     K=numpy.exp(-(u**2)/2)/(2*numpy.pi)**.5
     return(K)
+
 def BayesTransform(gap_distribution):
     transformed=[]
     scale=sum([l*gap_distribution[l] for l in range(len(gap_distribution))])
@@ -234,9 +235,9 @@ def WriteDistributions(inDir,outfile='', names=['2L', '2R', '3L', '3R']):
     gap_list[zero_indices]=nonzero_min
     print len(domain)
     gap_array=numpy.vstack(gap_list).transpose()
-    bw= CoverageModeller_9.CV_4( gap_array,0,100,10, 3,fold=100, cutoff=.99)
+    bw= CoverageModeller.Cross_validate( gap_array,0,100,10, 3,fold=100, cutoff=.99)
     mpd=gap_array.sum(1)
-    kde=numpy.array( CoverageModeller_9.FastHistoKDE_BW(mpd, bw))
+    kde=numpy.array( CoverageModeller.FastHistoKDE_BW(mpd, bw))
     Pr=[0.]*(domain<0).sum()+list( BayesTransform(kde[domain>=0]))
 
     totalReads=sum(mpd)
@@ -267,8 +268,8 @@ def WriteLenDistributions(inDir, outfile='', names=['2L', '2R', '3L', '3R']):
     gap_list, len_dist=EstimateLenDistAll(inDir, names)
     gap_array=numpy.vstack(gap_list).transpose()
 
-    bw= CoverageModeller_9.CV_4(gap_array, numpy.arange(0,40,.5),cutoff=.99)
-    kde=CoverageModeller_9.FastHistoKDE_BW(gap_list)
+    bw= CoverageModeller.Cross_validate(gap_array, numpy.arange(0,40,.5),cutoff=.99)
+    kde=CoverageModeller.FastHistoKDE_BW(gap_list)
 
     Pr=BayesTransform(kde)
     totalReads=sum(mpd)
