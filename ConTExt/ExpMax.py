@@ -56,22 +56,18 @@ pyplot.ioff()
 import time
 import math
 import numpy
+import numpy as np
 import scipy
 import csv
-##import networkx
-##import FindDiscreteGraphs
 import collections
-##import matplotlib
 import random
 import copy
-##import cython
-
 import os
 
 
 from scipy import stats
 from itertools import chain
-import numpy as np
+
 #Imports for Scikit-Learn
 import sklearn
 import sklearn.gaussian_process
