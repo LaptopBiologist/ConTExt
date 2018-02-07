@@ -355,7 +355,7 @@ def CallAligner(inFile, outFile, Index, cutoff, seedLength, threads, runlog, phr
     logfile=open(logname, 'w')
 
 
-    proc=subprocess.Popen([bowDir+'/bowtie2-align', '-p', threads , '-'+str(Phred[ phred]), '--score-min', 'L,0,'+ str(cutoff), '-L', str(seedLength),  '-x', Index, '-U', inFile, '-S', outFile], stderr=logfile)
+    proc=subprocess.Popen([bowDir, '-p', threads , '-'+str(Phred[ phred]), '--score-min', 'L,0,'+ str(cutoff), '-L', str(seedLength),  '-x', Index, '-U', inFile, '-S', outFile], stderr=logfile)
     print ("Aligning {0} to {1}...".format(inFile, Index ))
     time.sleep(.5)
     crash=CheckForCrash(logname)
@@ -443,19 +443,19 @@ def SortAlignment (inDir, Root, E, I, runlog, threads=1, samDir=''):
             try:
                 logfile.write('\n\nConverting Sam to Bam...\n')
                 logfile.flush()
-                p=subprocess.Popen([samDir+'/samtools', 'view', '-@', threads, '-u', '-S', inSam, '-o', outBam ], stderr=logfile)
+                p=subprocess.Popen([samDir, 'view', '-@', threads, '-u', '-S', inSam, '-o', outBam ], stderr=logfile)
                 print ('Converting Sam to Bam...')
                 p.communicate()
 
                 logfile.write('\n\nSorting Bam...\n')
                 logfile.flush()
-                p=subprocess.Popen(['samtools', 'sort', '-n','-@', threads,  outBam, sortBam ], stderr=logfile)
+                p=subprocess.Popen([samDir, 'sort', '-n','-@', threads,  outBam, sortBam ], stderr=logfile)
                 print ('Sorting Bam...')
                 p.communicate()
 
                 logfile.write('\n\nConverting Bam to Sam...\n')
                 logfile.flush()
-                p=subprocess.Popen(['samtools', 'view', '-@', threads, '-h', sortBam + '.bam', '-o', outSam ], stderr=logfile)
+                p=subprocess.Popen([samDir, 'view', '-@', threads, '-h', sortBam + '.bam', '-o', outSam ], stderr=logfile)
                 print ('Converting Bam to Sam...')
                 p.communicate()
 
