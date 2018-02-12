@@ -41,8 +41,9 @@ import csv
 import gzip
 import subprocess
 import shutil
-##import ExtractSeq
+
 import tools.AlignmentConverter as AlignmentConverter
+from tools.General_Tools import *
 
 from numpy import array
 from scipy import stats
@@ -82,16 +83,12 @@ class Parameters:
     #SamtoolsPath= 'c:/samtoolswin'
 
 
-    def __init__(self, conFile):
-        handle=open(conFile, 'r')
-        varDict={}
-        for line in handle:
-            variable=line.split('=')
-            varDict[variable[0]]=variable[1].strip('\n')
-        Parameters.BowtiePath=varDict['B']
-        Parameters.TrimPath=varDict['T']
-        Parameters.SamtoolsPath=varDict['S']
-        handle.close()
+    def __init__(self):
+
+        Parameters.BowtiePath=''
+        Parameters.TrimPath=''
+        Parameters.SamtoolsPath=''
+
 
 class Read():
     ID=0
@@ -350,7 +347,7 @@ def CallAligner(inFile, outFile, Index, cutoff, seedLength, threads, runlog, phr
     #Align fastq file using bowtie
     #It might be prudent to only output aligned reads.
     print bowDir
-    os.chdir(bowDir)
+##    os.chdir(bowDir)
     logname='.'.join(outFile.split('.')[:-1])+'_bowtie_log.txt'
     logfile=open(logname, 'w')
 
@@ -424,7 +421,7 @@ def SortAlignment (inDir, Root, E, I, runlog, threads=1, samDir=''):
     """Call Samtools to sort alignments by read number to simplify matching read pairs."""
     sortFailed=False
     #Move to the SamTools directory
-    os.chdir(samDir)
+##    os.chdir(samDir)
 
     logName=inDir+'/'+Root+'_errlog.txt'
     logfile=open(logName, 'a')
@@ -865,17 +862,18 @@ def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, IndexList, GemCode
     keycount=0
     #Make Output Files
     NameKey={}
-    outFiles={}
+    outFiles=FileManager(100, delimiter='\t')
 
     os.mkdir(inDir+'/'+Root)
+    directory=inDir+'/'+Root+'/'
     for k in ChrKey.keys():
         if k=='*':continue
         keycount1='_'.join(k.split('/'))
         keycount='_'.join(keycount1.split('|'))
         NameKey[k]=keycount
-        outFiles[k]=open(inDir+'/'+Root+'/'+keycount+'.dat', 'w')
+        outfile=directory+keycount+'.dat'
         header=[k, 'strand', 'start', 'end','seq', 'qual', 'Context' ,'strand', 'start', 'end','seq', 'qual']
-        dump=csv.writer(outFiles[k], delimiter='\t').writerow(header)
+        outFiles[outfile].writerow(header)
 
     SourceStop=False
     while SourceStop==False:
@@ -891,47 +889,62 @@ def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, IndexList, GemCode
         if rNumber==SourceNum and SourceType=='te':
             if w=='te':
                 line=GetOutputLine(SourceRow, Row)
-                csv.writer(outFiles[SourceRow[2]], delimiter='\t').writerow(line+barcode)
+                filename=directory+SourceRow[2]+'.dat'
+                outFiles[filename].writerow(line+barcode)
 
                 if SourceRow[2]!=Row[2]: #Write to both files if two TEs
                     line=GetOutputLine(Row, SourceRow)
-                    csv.writer(outFiles[Row[2]], delimiter='\t').writerow(line)
+                    filename=directory+Row[2]+'.dat'
+                    outFiles[filename].writerow(line+barcode)
 
                 if w=='um':
                     line=GetOutputLine(SourceRow, Row)
-                    csv.writer(outFiles[SourceRow[2]], delimiter='\t').writerow(line+barcode)
+                    filename=directory+SourceRow[2]+'.dat'
+                    outFiles[filename].writerow(line+barcode)
+
 
                 if w=='as':
                     line=GetOutputLine(SourceRow, Row)
-                    csv.writer(outFiles[SourceRow[2]], delimiter='\t').writerow(line+barcode)
+                    filename=directory+SourceRow[2]+'.dat'
+                    outFiles[filename].writerow(line+barcode)
 
 
         if rNumber==SourceNum and SourceType=='as':
                 if w=='te':
                     line=GetOutputLine(Row, SourceRow)
-                    csv.writer(outFiles[Row[2]], delimiter='\t').writerow(line+barcode)
+                    filename=directory+Row[2]+'.dat'
+                    outFiles[filename].writerow(line+barcode)
+
 
                 if w=='um':
                     line=GetOutputLine(SourceRow, Row)
-                    csv.writer(outFiles[SourceRow[2]], delimiter='\t').writerow(line+barcode)
+                    filename=directory+SourceRow[2]+'.dat'
+                    outFiles[filename].writerow(line+barcode)
 
                 if w=='as':
                     line=GetOutputLine(SourceRow, Row)
-                    csv.writer(outFiles[SourceRow[2]], delimiter='\t').writerow(line+barcode)
+                    filename=directory+SourceRow[2]+'.dat'
+                    outFiles[filename].writerow(line+barcode)
+
 
                     if SourceRow[2]!=Row[2]: #Write to both files if two Chr
                         line=GetOutputLine(Row, SourceRow)
-                        csv.writer(outFiles[Row[2]], delimiter='\t').writerow(line+barcode)
+                        filename=directory+Row[2]+'.dat'
+                        outFiles[filename].writerow(line+barcode)
+
 
 
         if rNumber==SourceNum and SourceType=='um':
                 if w=='te':
                     line=GetOutputLine(Row, SourceRow)
-                    csv.writer(outFiles[Row[2]], delimiter='\t').writerow(line+barcode)
+                    filename=directory+Row[2]+'.dat'
+                    outFiles[filename].writerow(line+barcode)
+
 
                 if w=='as':
                     line=GetOutputLine(Row, SourceRow)
-                    csv.writer(outFiles[Row[2]], delimiter='\t').writerow(line+barcode)
+                    filename=directory+Row[2]+'.dat'
+                    outFiles[filename].writerow(line+barcode)
 
                    #Check which files to iterate
         #First: Is the source less than or equal to all files? Iterate it:
@@ -951,8 +964,7 @@ def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, IndexList, GemCode
             except StopIteration:
                 SourceStop=True
 
-    for k in outFiles.keys():
-        outFiles[k].close()
+    outFiles.close()
     SourceHandle.close()
     QueryHandle.close()
 
@@ -1258,9 +1270,54 @@ def OrganizeOutputIII(inDir, Root, END, CountPosition, PosRange, IndexList):
         outFiles[k].close()
     SourceHandle.close()
     QueryHandle.close()
+def DownsampleFastq(infile1, infile2, outfile, target_fraction=.2 ):
+    outfile_root,outfile_extension=outfile.split('.')[0], ''.join(outfile.split('.')[1:])
+    if outfile_extension[-2:]=='gz':
+        outhandle_1=gzip.open('{0}_1.{1}'.format(outfile_root, outfile_extension), 'w')
+        outhandle_2=gzip.open('{0}_2.{1}'.format(outfile_root, outfile_extension), 'w')
+    else:
+        outhandle_1=open('{0}_1.{1}'.format(outfile_root, outfile_extension), 'w')
+        outhandle_2=open('{0}_2.{1}'.format(outfile_root, outfile_extension), 'w')
 
 
-def pipeline (inDir, outDir, AssemblyIndex, TEIndex, threads, config, cons_file='', length=70, ReadIDPosition=1, PositionRange=0, phred=33, shorten=True, rename=False, Trim=True, Align=True, convTable='', GemCode=False):
+    if infile1[-2:]=='gz':
+        inhandle1=gzip.open(infile1, 'r')
+    else:
+        inhandle1=open(infile1, 'r')
+
+    if infile2[-2:]=='gz':
+        inhandle2=gzip.open(infile2, 'r')
+    else:
+        inhandle2=open(infile2, 'r')
+
+    fastq_iterator_1=FastqGeneralIterator(inhandle1)
+    fastq_iterator_2=FastqGeneralIterator(inhandle2)
+    #Write the first read to file
+    read_1, read_2=fastq_iterator_1.next(), fastq_iterator_2.next()
+    outhandle_1.write("@%s\n%s\n+\n%s\n" % ( read_1))
+    outhandle_2.write("@%s\n%s\n+\n%s\n" % ( read_2))
+
+    total_reads=1.
+    kept_reads=1.
+
+    fraction_kept=kept_reads/total_reads
+
+    for read_1 in fastq_iterator_1:
+        read_2=fastq_iterator_2.next()
+        total_reads+=1.
+        if fraction_kept<target_fraction:
+            outhandle_1.write("@%s\n%s\n+\n%s\n" % ( read_1))
+            outhandle_2.write("@%s\n%s\n+\n%s\n" % ( read_2))
+            kept_reads+=1.
+        fraction_kept=kept_reads/total_reads
+    print 'Kept {0} reads of {1}. Fraction={2}'.format(kept_reads, total_reads, fraction_kept)
+    outhandle_1.close()
+    outhandle_2.close()
+    inhandle1.close()
+    inhandle2.close()
+
+
+def pipeline (inDir, outDir, AssemblyIndex, TEIndex, threads, config, cons_file='', length=70, ReadIDPosition=1, PositionRange=0, PHRED=33, shorten=True, rename=True, Trim=True, Align=True, convTable='', GemCode=False):
 
     """This functions runs the alignment and post-alignment organization pipeline.
 
@@ -1287,7 +1344,7 @@ def pipeline (inDir, outDir, AssemblyIndex, TEIndex, threads, config, cons_file=
 
     Unzipped=False
 
-    BowtiePath, TrimPath, SamtoolsPath=configure(config)
+    BowtiePath, TrimPath, SamtoolsPath=config.BowtiePath,config.TrimPath, config.SamtoolsPath
 
     Index=['as','te']
     IndexFiles={'as':AssemblyIndex, 'te':TEIndex}
@@ -1301,7 +1358,7 @@ def pipeline (inDir, outDir, AssemblyIndex, TEIndex, threads, config, cons_file=
     Roots, Root_Ext = FindInput(inDir)
 
     RunLog.write('Version: {0}\n\n'.format(version))
-    RunLog.write('Parameters: length = {0}, phred = {1}, shorten = {2}, Trim = {3}, Align = {4}\n\n'.format(length, phred, shorten, Trim, Align))
+    RunLog.write('Parameters: length = {0}, phred = {1}, shorten = {2}, Trim = {3}, Align = {4}\n\n'.format(length, PHRED, shorten, Trim, Align))
     RunLog.write('{0} < 100 == {1}; {2} >= 100 == {3}'.format(length, length<100, length , length>=100))
     print ('Paired Fastq found for the following datasets:')
     RunLog.write('Paired ends found for the following datasets:\n\n')
@@ -1336,7 +1393,11 @@ def pipeline (inDir, outDir, AssemblyIndex, TEIndex, threads, config, cons_file=
         RunLog.write('\n----------------------\nProcessing {0}...\n\n'.format(sample))
         print ('\n----------------------\nTrimming reads in {0}...'.format(sample))
         RunLog.write('\n----------------------\nTrimming reads in {0}...\n\n'.format(sample))
-
+        if PHRED=='auto':
+            InRoot='/'.join([inDir, sample])
+            file1=InRoot+'_1.'+Root_Ext[sample+'_1']
+            phred=DeterminePHRED(file1)
+        else: phred=PHRED
 
         if Trim==True:
             TrimError=TrimReads(inDir, sample, Root_Ext,  outDir,threads, RunLog,TrimPath, phred)
@@ -1500,38 +1561,35 @@ def main(argv):
         param[argv[i]]= argv[i+1]
     print param
     if param=={}: return()
+
+    if param.has_key('--downsample')==True:
+        DownsampleFastq(param['-in1'], param['-in2'], param['-out'], float( param['--downsample']))
+        return
+
+    spec_dict=ReadSpecificationFile(param['-spec'])
     #inDir, outDir, AssemblyIndex, TEIndex, threads, length=70, ReadIDPosition=1, PositionRange=0, phred=33, shorten=True, Trim=True
     inDir=param['-i']
     outDir=param['-o']
-    AssemblyIndex=param['-a']
-    TEIndex=param['-t']
-    threads=param['-p']
-    cons_file=param['-cons']
+    AssemblyIndex=spec_dict['AssemblyIndex']
+    TEIndex=spec_dict['RepeatIndex']
+    threads=int( spec_dict['threads'])
+    cons_file=spec_dict['Cons']
     convTable=''
-    if param.has_key('-conv')==True:
-        convTable=param['-conv']
-    if param.has_key('--phred')==True:
-        phred= int(param['--phred'])
-    else: phred=33
-    if param.has_key('-s')==True:
-        shorten=param['-s']
-    if param.has_key('-config')==True:
-        Parameters(param['-config'])
-    if param.has_key('-B')==True:
-        Parameters.BowtiePath= param['-B']
-    if param.has_key('-T')==True:
-        Parameters.TrimPath= param['-T']
-    if param.has_key('-S')==True:
-        Parameters.SamtoolsPath= param['-S']
-    if param.has_key('-L')==True:
-        length= int (param['-L'])
-    if param.has_key('-R')==True:
-        rename= True
-    else: rename=False
-    GemCode=False
-    if param['-G']=='True': GemCode=True
+    convTable=spec_dict['ConversionTable']
+    print convTable
+
+    phred=spec_dict['Phred']
+    length=int( spec_dict['MaxReadLen'])
+    executables=Parameters()
+    executables.BowtiePath= spec_dict['Bowtie2']
+    executables.TrimPath= spec_dict['Trimmomatic']
+    executables.SamtoolsPath= spec_dict['Samtools']
+
+    rename=spec_dict['RenameReads']
+    GemCode=spec_dict['Gemcode']
+
     print Parameters.BowtiePath
-    pipeline(inDir, outDir, AssemblyIndex, TEIndex, str(threads), param['-config'], cons_file=cons_file, phred=phred, length=length, convTable=convTable, rename=rename, GemCode=GemCode)
+    pipeline(inDir, outDir, AssemblyIndex, TEIndex, str(threads), executables, cons_file=cons_file, PHRED=phred, length=length, convTable=convTable, rename=rename, GemCode=GemCode)
 
     pass
 

@@ -12,6 +12,53 @@
 from Bio import SeqIO
 import numpy
 
+import csv
+class FileManager():
+    """A class for opening many handles at once"""
+    def __init__(self, maxfiles=100, delimiter='', mode='w'):
+        self.maxfiles=maxfiles
+        self.__handle_dictionary={}
+        self.__wrapped_handles={}
+        self.delimiter=delimiter
+        self.mode=mode
+
+    def __len__(self):
+        return len(self.__handle_dictionary)
+
+    def __getitem__(self, _file):
+        """If the file is already open"""
+
+        #If the file isn't currently open, open it
+        if self.__handle_dictionary.has_key(_file)==False:
+            if len(self)== self.maxfiles:   #Need to close a file first
+                file_to_close= self.__handle_dictionary.keys()[-1]
+                self.__handle_dictionary[file_to_close].close()
+                del self.__handle_dictionary[file_to_close]
+                del self.__wrapped_handles[file_to_close]
+
+            self.__handle_dictionary[_file]=open(_file, 'a')
+
+            #If told the file is delimited, open it with the csv parser
+            if self.delimiter!='':
+                if self.mode=='r':
+                    self.__wrapped_handles[_file]=csv.reader(self.__handle_dictionary[_file], delimiter=self.delimiter)
+                if self.mode=='w':
+                    self.__wrapped_handles[_file]=csv.writer(self.__handle_dictionary[_file],delimiter=self.delimiter)
+
+        #If it's not a delimited file, return the handle
+        if self.delimiter=='':
+            return self.__handle_dictionary[_file]
+        #If it is a delimited file, return the parser
+        else:
+            return self.__wrapped_handles[_file]
+
+    def close(self):
+        for _file in self.__handle_dictionary.keys():
+            self.__handle_dictionary[_file].close()
+
+        self.__handle_dictionary={}
+        self.__wrapped_handles={}
+
 
 
 def GetSeq(ref, upper=False):
@@ -61,6 +108,7 @@ def DecomposeMatrix(cov):
 def ReadSpecificationFile(infile):
     handle=open(infile)
     spec_dict={}
+    bool_dict={'true':True, 'false':False}
     for line in handle:
         line=line.strip()
         if len(line)==0: continue   #Empty line
@@ -79,6 +127,9 @@ def ReadSpecificationFile(infile):
                 spec_dict[param_name]=float( value)
             except:
                 spec_dict[param_name]=str(value).lower()
+        if param_type=='?':
+            spec_dict[param_name]=bool_dict[str(value).lower()]
+
     return spec_dict
 
 def WeightedAverage(weights, items):
