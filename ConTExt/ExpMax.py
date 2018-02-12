@@ -84,6 +84,7 @@ import tools.WriteDistributions as WriteDistributions
 import tools.GeneralizedLogisticRegression as GeneralizedLogisticRegression
 import tools.PlotsForContext as PlotsForContext
 
+from tools.General_Tools import *
 
 #Set figure defaults
 matplotlib.rcParams['font.size']=14
@@ -230,15 +231,7 @@ def MakeDir(newdir):
     if os.path.exists(newdir)==False:
         os.mkdir(newdir)
 
-def GetLengths(ref):
-    """Reads a Fasta, returns a dictionary storing the lenghts of the sequences."""
-    handle=open(ref, 'r')
-    lib=SeqIO.parse(handle, 'fasta')
-    SeqLen={}
-    for rec in lib:
-        SeqLen[CleanName(rec.name)] = len(rec.seq)
-    handle.close()
-    return SeqLen
+
 
 def CleanName(name):
     illegal=['|', '!','>', '<', '?','/','*']
@@ -279,14 +272,6 @@ def RecomposeMatrix(eig_vec, eig_val_matrix):
     """Returns a covariance matrix from eigenvectors and eigenvalues"""
     return eig_vec*eig_val_matrix*numpy.linalg.inv(eig_vec)
 
-def WeightedAverage(weights, items):
-    avg=numpy.nansum(weights*items)
-    return avg
-
-def WeightedStdDev(weights, items):
-    avg=WeightedAverage(weights, items)
-    sd=numpy.nansum(weights* (items-avg)**2)**.5
-    return sd
 
 def PowerFunction(x,c):
     return c*(x**-1)

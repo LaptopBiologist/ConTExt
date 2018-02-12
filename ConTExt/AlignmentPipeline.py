@@ -1105,22 +1105,6 @@ def OrganizeOutputII(inDir, Root, END, CountPosition, PosRange, IndexList):
     SourceHandle.close()
     QueryHandle.close()
 
-
-def BuildKey(TE_Index, As_Index):
-    ChrKey={}
-    ChrKey['*']='um'
-    handle=open(TE_Index)
-    lib=SeqIO.parse(handle, 'fasta')
-    for book in lib:
-        ChrKey[book.name]='te'
-    handle.close()
-    handle=open(As_Index)
-    lib=SeqIO.parse(handle, 'fasta')
-    for book in lib:
-        ChrKey[book.name]='as'
-
-    return ChrKey
-
 def GetMDString(row):
     optional=row[11:]
     optional_headers=[flag.split(':')[0] for flag in optional]

@@ -341,10 +341,10 @@ def SplitFASTA(infile, outDir):
         outHandle.close()
 
 def GetSeq(ref, parser='fasta', gzipped=False):
-    if gzipped==False:
-        handle=open(ref, 'r')
+    if ref[-2:]=='gz':
+        handle=gzip.open(ref, 'r')
     else:
-        handle=gzip.open(ref)
+        handle=open(ref, 'r')
     lib=SeqIO.parse(handle, parser)
     SeqLen={}
     for rec in lib:

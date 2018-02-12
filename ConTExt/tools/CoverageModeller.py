@@ -79,11 +79,14 @@ def ReadDistributions(infile, cutoff=.005):
 
     return m, (min_cutoff, max_cutoff), p
 
-def ReadGCContent(refFile, autosomes=['2L', '2R', '3L', '3R', 'X']):
+def ReadGCContent(refFile, autosomes):
 ##    autosomes=['4']
     """Convert the major arms of a Drosophila reference genome into an array
     valued 1 where the nucleotide is a G or a C and valued 0 otherwise."""
-    inhandle=open(refFile, 'r')
+    if refFile[-2:]=='gz':
+        inhandle=gzip.open(refFile, 'r')
+    else:
+        inhandle=open(refFile, 'r')
     inParser=SeqIO.parse(inhandle, 'fasta')     #Read file as a *.fasta
     GC_dict={}
     for record in inParser:
@@ -93,11 +96,14 @@ def ReadGCContent(refFile, autosomes=['2L', '2R', '3L', '3R', 'X']):
         GC_dict[record.name]=GC
     return GC_dict
 
-def ReadMaskedContent(refFile, autosomes=['2L', '2R', '3L', '3R', 'X']):
+def ReadMaskedContent(refFile, autosomes):
 ##    autosomes=['4']
     """Convert the major arms of a Drosophila reference genome into an array
     valued True where the nucleotide is masked and valued False otherwise."""
-    inhandle=open(refFile, 'r')
+    if refFile[-2:]=='gz':
+        inhandle=gzip.open(refFile, 'r')
+    else:
+        inhandle=open(refFile, 'r')
     inParser=SeqIO.parse(inhandle, 'fasta')
     masked_dict={}
     for record in inParser:

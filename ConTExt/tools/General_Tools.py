@@ -11,7 +11,7 @@
 
 from Bio import SeqIO
 import numpy
-
+import gzip
 import csv
 class FileManager():
     """A class for opening many handles at once"""
@@ -63,7 +63,10 @@ class FileManager():
 
 def GetSeq(ref, upper=False):
     """Reads a fasta, returns of a dictionary of strings keyed by entry name."""
-    handle=open(ref, 'r')
+    if ref[-2:]=='gz':
+        handle=gzip.open(ref, 'r')
+    else:
+        handle=open(ref, 'r')
     lib=SeqIO.parse(handle, 'fasta')
     SeqLen={}
     for rec in lib:

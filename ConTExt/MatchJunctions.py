@@ -16,7 +16,7 @@ import os
 import sys
 import csv
 import time
-from General_Tools import *
+from tools.General_Tools import *
 
 csv.field_size_limit(sys.maxsize)
 #------------------------------------------------------------------------------#
@@ -156,41 +156,6 @@ class ClusterInformation():
         self.pos_y+=new_jxn.pos_y
         self.IDs+=new_jxn.IDs
 
-
-#------------------------------------------------------------------------------#
-#
-#General Functions
-#
-#------------------------------------------------------------------------------#
-
-def GetSeq(ref, upper=False):
-
-    """Reads a fasta, returns of a dictionary of strings keyed by entry name."""
-    handle=open(ref, 'r')
-    lib=SeqIO.parse(handle, 'fasta')
-    SeqLen={}
-    for rec in lib:
-##        if refName.count(rec.name)==0: continue
-        SeqLen[CleanName(rec.name)]=str( rec.seq)
-        if upper==True: SeqLen[CleanName(rec.name)]=SeqLen[CleanName(rec.name)].upper()
-    handle.close()
-    return SeqLen
-
-
-def MakeDir(newdir):
-    if os.path.exists(newdir)==False:
-        os.mkdir(newdir)
-
-def RecomposeMatrix(eig_vec, eig_val_matrix):
-    """Returns a covariance matrix from eigenvectors and eigenvalues"""
-    return eig_vec*eig_val_matrix*numpy.linalg.inv(eig_vec)
-
-def DecomposeMatrix(cov):
-    """Decomposes 2D covariance matrix into its eigenvectors and eigenvalues"""
-    cov_matrix= numpy.matrix(cov)
-    eig_val, eig_vec=numpy.linalg.eig(cov_matrix)
-    eig_val_diag=[[eig_val[0],0],[0,eig_val[1]]]
-    return eig_vec, eig_val_diag
 
 #------------------------------------------------------------------------------#
 #
