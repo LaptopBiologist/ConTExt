@@ -166,6 +166,7 @@ def Cumulative(dist):
 
 def BuildPECoverageSignalAsArray(infile,chrom_length, ins_dist):
 ##    refLen=GetLengths(refFile)
+    #Initialize a coverage array
     cvg=numpy.array([0.]*chrom_length)
     if len(ins_dist)==2:
         min_gap, max_gap=ins_dist
@@ -176,37 +177,45 @@ def BuildPECoverageSignalAsArray(infile,chrom_length, ins_dist):
     handle=open(infile, 'r')
     table=csv.reader(handle, delimiter='\t')
     table.next()
-    total=0
+    total_reads=0
     count=0
     length_list=[]
     q_list=[]
     for line in table:
-        data=ConTExtLine(line)
-        if data.Seq1!=data.Seq2: continue
+        readpair=ConTExtLine(line)
+        total_reads+=1    #Record that we've examined a read
+
+        #Concordant read pairs must
+        #1.) ...both align to the same sequence
+        if readpair.Seq1!=readpair.Seq2: continue
 ##        if refNames.count( data.Seq1)==0: continue
 ##            length=data.Start2-data.Start1
             #Maybe base it on the coverage dist instead?
         #Only count a read pair if:
-            #1.) Reads map to opposite strands. If they map to the same strand, skip line.
-        if data.Strand1==data.Strand2: continue
-        total+=1
-##            if data.End1>=data.End2: continue       #Problem: The end1 and end2 do not necessarily correspond to forward and reverse!
-        if data.Strand1=='+':
-            length=data.threePrime2-data.threePrime1
-            r,l=data.threePrime2,data.threePrime1
-        elif data.Strand1=='-':
-            length=data.threePrime1-data.threePrime2
-            r,l=data.threePrime1,data.threePrime2
-##        if length>=len(cumul_dist):continue
+
+        #2.) ...map to opposite strands. If they map to the same strand, skip line.
+        if readpair.Strand1==readpair.Strand2: continue
+
+
+        #We n
+        if readpair.Strand1=='+':
+            length=readpair.threePrime2-readpair.threePrime1
+            r,l=readpair.threePrime2,readpair.threePrime1
+        elif readpair.Strand1=='-':
+            length=readpair.threePrime1-readpair.threePrime2
+            r,l=readpair.threePrime1,readpair.threePrime2
+
             #2.) Distance between reads is what's expected given the insert size distribution. If not, skip line.
         length_list.append(length)
-        q_list.append(data.MapQ1+data.MapQ2)
+        q_list.append(readpair.MapQ1+readpair.MapQ2)
         if length<min_gap or length>max_gap: continue
+
             #3.) The mapping quality isn't complete crap.
-        if data.MapQ1+data.MapQ2<=30: continue
+        if readpair.MapQ1+readpair.MapQ2<=30: continue
         count+=1
-        cvg[l:r+1]+=1.   #Bug: cvg[l:r+1]+=1
-    print "{0} concordant reads, {1} total read:".format( count, total)
+        #Increment by one the sequence coverer by the read pair
+        cvg[l:r+1]+=1.
+    print "{0} concordant reads, {1} total read:".format( count, total_reads)
     print "Q1,Q2,Q3 for gap distribution:{0}, {1}, {2}". format(  scipy.stats.scoreatpercentile(length_list, 25), scipy.stats.scoreatpercentile(length_list, 50), scipy.stats.scoreatpercentile(length_list, 75))
     print "Q1,Q2,Q3 for MapQ1+MapQ2 distribution:{0}, {1}, {2}".format(  scipy.stats.scoreatpercentile(q_list, 25), scipy.stats.scoreatpercentile(q_list, 50), scipy.stats.scoreatpercentile(q_list, 75))
     return cvg

@@ -78,14 +78,15 @@ from sklearn import gaussian_process
 from Bio import SeqIO
 #imports for plotting
 
+try:
+    import tools.CoverageModeller as CoverageModeller
+    import tools.WriteDistributions as WriteDistributions
+    import tools.GeneralizedLogisticRegression as GeneralizedLogisticRegression
+    import tools.PlotsForContext as PlotsForContext
 
-import tools.CoverageModeller as CoverageModeller
-import tools.WriteDistributions as WriteDistributions
-import tools.GeneralizedLogisticRegression as GeneralizedLogisticRegression
-import tools.PlotsForContext as PlotsForContext
-
-from tools.General_Tools import *
-
+    from tools.General_Tools import *
+except:
+    print "COuldn't import"
 #Set figure defaults
 matplotlib.rcParams['font.size']=14
 
@@ -576,6 +577,10 @@ def SquareEM(data, cov, components=60, iterations=3, Agglomerate=False, seed_siz
 
     return theta_old,labels, lk_list
 
+def SimplifyData(data, target):
+    chosen_data=numpy.random.choice(range(len(data)), size=target, replace=False)
+    pass
+
 def InitializeByFogle(components,data, alpha, cov ):
     """Construct an initial model by centering components on randomly chosen data points."""
 
@@ -875,7 +880,7 @@ def AgglomerateModels(theta):
 #Feeding ConTExt output throught the EM algorithm
 
 
-def ClusterDirectory(indir, outfile, dist_file, cov, ref_dict, GemCode=False, ref_names=['2L', '3L', '2R', '3R', 'X', '4', 'U']):
+def ClusterDirectory(indir, outfile, dist_file, cov, ref_dict, GemCode=False, sequence_to_cluster=['2L', '3L', '2R', '3R', 'X', '4', 'U']):
 
     """Iterate through each file in the directory indir, fit GMMs to the read pair
     distributions and write the output to outfile."""
@@ -900,10 +905,10 @@ def ClusterDirectory(indir, outfile, dist_file, cov, ref_dict, GemCode=False, re
     outTable.writerow(header)
 
     for f in files:
-        file_root=f.split('.')[0]
+        file_root='.'.join( f.split('.')[:-1])
 ##        if f[0]=='(':continue
 ##        if file_root!= 'Jockey-3_DSim': continue
-        if ref_names.count(file_root)!=0: continue
+        if sequence_to_cluster.has_key (file_root)==False: continue
         infile='{0}/{1}'.format(indir, f)
         Pair_List, read_time, cluster_time, write_time, cluster_count=ClusterFile(infile, outTable, Pair_List, cov, k, p, ref_dict, cluster_count, regression_coefficients, GemCode)
 
@@ -1219,18 +1224,21 @@ def ClusterImage(image, quadrant, cov, lines, self_self_image, dist,nonconcordan
         return reads_x, reads_y, labels, nonconcordantIndices, clusterDict
 
     good_clustering=numpy.nan
+    max_distance=abs(numpy.max( nonconcordantReads[1,:])-numpy.min( nonconcordantReads[1,:]))
+    if max_distance<=100000:
+        #Cluster the scatterplot with SquareEM, check whether the the algorithm has converged
+        #and if it has not, repeat until it converges.
+        while numpy.isnan( good_clustering)==True or numpy.isinf( good_clustering)==True:
+            final_theta, final_labels, final_Lk= SquareEM(nonconcordantReads.transpose(), cov, components, 200, Agglomerate=agg_Bool, seed_size=block_size, verbose=True)
+            print "Likelihood is {0}  after {1} iterations".format(final_Lk[-1],len(final_Lk))
+            if numpy.isnan( final_Lk[-1])==True or numpy.isinf(final_Lk[-1])==True:
+                print '\t\t\tFailed to converge. Retrying.'
+            good_clustering=final_Lk[-1]
 
-    #Cluster the scatterplot with SquareEM, check whether the the algorithm has converged
-    #and if it has not, repeat until it converges.
-    while numpy.isnan( good_clustering)==True or numpy.isinf( good_clustering)==True:
-        final_theta, final_labels, final_Lk= SquareEM(nonconcordantReads.transpose(), cov, components, 200, Agglomerate=agg_Bool, seed_size=block_size, verbose=True)
-        print "Likelihood is {0}  after {1} iterations".format(final_Lk[-1],len(final_Lk))
-        if numpy.isnan( final_Lk[-1])==True or numpy.isinf(final_Lk[-1])==True:
-            print '\t\t\tFailed to converge. Retrying.'
-        good_clustering=final_Lk[-1]
 
-
-    print "\t\t\tConverged."
+        print "\t\t\tConverged."
+    else:
+        final_labels=AgglomerativeClustering(nonconcordantReads[1,:],400)
     reads_x, reads_y, labels=nonconcordantReads[0,:], nonconcordantReads[1,:], final_labels
     #Create output clusters
 
@@ -1257,6 +1265,27 @@ def ClusterImage(image, quadrant, cov, lines, self_self_image, dist,nonconcordan
     return reads_x, reads_y, labels, nonconcordantIndices, clusterDict
 
 #Functions used to write output
+
+def AgglomerativeClustering(chromosome_positions, distance_cutoff, column=1):
+
+    sort_ind=numpy.argsort(chromosome_positions)
+    sorted_positions=chromosome_positions[sort_ind]
+    distance_to_next_read=numpy.diff(sorted_positions)
+    indices_that_exceed_cutoff=list( numpy.where(distance_to_next_read>distance_cutoff)[0]+1) #Indices where the distnace exceeds the distance cutoff
+    cluster_edges=[0]+indices_that_exceed_cutoff+[len(sorted_positions)]
+    label_array=numpy.array([0]*len(chromosome_positions))
+
+    cluster=1
+    for i in range(len( cluster_edges))[1:-1]:
+        l,r=cluster_edges[i], cluster_edges[i+1]
+        print l,r
+        label_array[l:r]=cluster
+        cluster+=1
+
+    cluster_labels=numpy.ndarray(label_array.shape, dtype=int)
+    cluster_labels[sort_ind]=label_array
+    return cluster_labels
+
 
 def WriteClusters(outTable, clusters,anchor_name, target_name, quadrant, Pr_dist, cluster_count,  regression_coefficients, GemCode, phred=33):
     """Write the clustering output to the output file."""
@@ -1592,7 +1621,7 @@ def RoughClusters(infile, distance_cutoff=400, read_depth=3, assembly_list=['2L'
                 TrainByQuadrant[quad]=[]
 
             #Cluster the scatterplot; this is a list of lists
-            TrainByQuadrant[quad]+=ContextLinesByPosition(sortedPositions, distance_cutoff)
+            TrainByQuadrant[quad]+=ClusterReadsByPosition(sortedPositions, distance_cutoff)
     cov={}
     data_points={}
     for key in TrainByQuadrant.keys():
@@ -1607,7 +1636,7 @@ def RoughClusters(infile, distance_cutoff=400, read_depth=3, assembly_list=['2L'
 
     return data_points
 
-def ContextLinesByPosition(lines, distance_cutoff):
+def ClusterReadsByPosition(lines, distance_cutoff):
     """Rename to ClusterLinesByPositions"""
 ##    sortedLines=sorted(lines, key=lambda w:w.threePrime2)
     posList=[line.threePrime2 for line in lines ]
@@ -1924,6 +1953,7 @@ def main(argv):
     refFile=spec_dict['Ref']
     consFile=spec_dict['Cons']
     ref_seq=GetLengths(refFile)
+    cons_seq=GetLengths('consFile')
     #Pipeline to cluster a directory of alignment outputs
     count=0
 
@@ -2017,7 +2047,7 @@ def main(argv):
             #So the mean insert size should generally be larger than the
             #optimal 1st eigenvector
 
-            cov1=mean_insert_size
+            cov1=mean_insert_size*4./3.
         else:
             assert type( spec_dict['Cov1'])==float, '!Cov1 must either be a float or AUTO.'
             cov1=float( spec_dict['Cov1'])
@@ -2088,8 +2118,8 @@ def main(argv):
         #Comparing
         summary_table.writerow(sample_summary)
         summary_handle.flush()
-        ValidateDirectory(directory,val_file, dist_file, cov_opt, distance_cutoff)
-        ClusterDirectory(directory,output_file, dist_file, cov_opt,ref_seq, GemCode)
+##        ValidateDirectory(directory,val_file, dist_file, cov_opt, distance_cutoff)
+        ClusterDirectory(directory,output_file, dist_file, cov_opt,ref_seq, GemCode, sequences_to_cluster=cons_seq)
 
 if __name__ == '__main__':
     main(sys.argv)

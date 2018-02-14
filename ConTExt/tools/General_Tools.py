@@ -59,7 +59,18 @@ class FileManager():
         self.__handle_dictionary={}
         self.__wrapped_handles={}
 
-
+def GetLengths(ref):
+    """Reads a Fasta, returns a dictionary storing the lenghts of the sequences."""
+    if ref[-2:]=='gz':
+        handle=gzip.open(ref, 'r')
+    else:
+        handle=open(ref, 'r')
+    lib=SeqIO.parse(handle, 'fasta')
+    SeqLen={}
+    for rec in lib:
+        SeqLen[CleanName(rec.name)] = len(rec.seq)
+    handle.close()
+    return SeqLen
 
 def GetSeq(ref, upper=False):
     """Reads a fasta, returns of a dictionary of strings keyed by entry name."""
@@ -74,6 +85,8 @@ def GetSeq(ref, upper=False):
         if upper==True: SeqLen[CleanName(rec.name)]=SeqLen[CleanName(rec.name)].upper()
     handle.close()
     return SeqLen
+
+
 
 def GetLengths(ref):
     """Reads a fasta, returns of a dictionary of strings keyed by entry name."""
@@ -143,6 +156,7 @@ def WeightedStdDev(weights, items):
     avg=WeightedAverage(weights, items)
     sd=numpy.nansum(weights* (items-avg)**2)**.5
     return sd
+
 
 def main():
     pass
