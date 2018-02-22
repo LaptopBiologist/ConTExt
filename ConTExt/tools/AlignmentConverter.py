@@ -1181,7 +1181,7 @@ def main(argv):
             if param.has_key('-replace')==True:
                replace=bool( param['-replace'])
             else: replace=False
-            convertCount, total, percent=ConvertSAMFromInsertionsToConsensus(samFile, convFile, replace_input=replace)
+            convertCount, total, percent=ConvertSAMFromInsertionsToConsensus(samFile, convFile, consFile, replace_input=replace)
             print "Converted {0} out of {1} insertion alignments to consensus alignments ({2}%)".format(convertCount, total, percent*100.)
 
     except:
