@@ -58,6 +58,7 @@ import sys
 
 BowtieOpt=['-v']
 BowtiePar=['2']
+csv.field_size_limit(sys.maxsize)
 
 version='conTExt-3.1'
 
@@ -446,15 +447,16 @@ def SortAlignment (inDir, Root, E, I, runlog, threads=1, samDir=''):
 
                 logfile.write('\n\nSorting Bam...\n')
                 logfile.flush()
-                p=subprocess.Popen([samDir, 'sort', '-n','-@', threads,  outBam, sortBam ], stderr=logfile)
+                p=subprocess.Popen([samDir, 'sort', '-n','-@', threads, '-o',  outSam, '-O', 'sam', outBam ], stderr=logfile)
                 print ('Sorting Bam...')
                 p.communicate()
-
-                logfile.write('\n\nConverting Bam to Sam...\n')
-                logfile.flush()
-                p=subprocess.Popen([samDir, 'view', '-@', threads, '-h', sortBam + '.bam', '-o', outSam ], stderr=logfile)
-                print ('Converting Bam to Sam...')
-                p.communicate()
+    #Unnecessary with new Samtools?
+##
+##                logfile.write('\n\nConverting Bam to Sam...\n')
+##                logfile.flush()
+##                p=subprocess.Popen([samDir, 'view', '-@', threads, '-h', sortBam + '.bam', '-o', outSam ], stderr=logfile)
+##                print ('Converting Bam to Sam...')
+##                p.communicate()
 
             except Exception:
                 print('SAMtools failed')
@@ -464,7 +466,7 @@ def SortAlignment (inDir, Root, E, I, runlog, threads=1, samDir=''):
 
             try:
                 os.remove(outBam)
-                os.remove(sortBam+'.bam')
+##                os.remove(sortBam+'.bam')
 
             except Exception:
                 print('Remove failed')
@@ -588,7 +590,7 @@ def HandleDualMappings(inDir, Root, option, end, IndexList, CountPosition, PosRa
             if rowTE[2]!='*': TECount+=1
 
             if TePos<AsPos and EndOfTE==False:
-                dump=TECSV.writerow(rowTe)
+                dump=TECSV.writerow(rowTE)
 
             if AsPos<TePos and EndOfAs==False:
                 dump=AsCSV.writerow(rowAs)

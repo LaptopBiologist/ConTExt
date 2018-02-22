@@ -13,6 +13,125 @@ from Bio import SeqIO
 import numpy
 import gzip
 import csv
+
+
+class clustered_line():
+    def __init__(self, row , Seq1=0, Seq2=1, Quad1=2, Quad2=3,\
+    ID=0, feature=4, jxn_x=5, jxn_y=6, range_x=7 , range_y=8, count=9, x_list=10,\
+    y_list=11, x5_list=12, y5_list=13, mapQ_x=14, mapQ_y=15, counter=16, cigar_x=17, cigar_y=18, MD_x=19, MD_y=20):
+        self.Seq1=row[Seq1]
+        self.Seq2=row[Seq2]
+        self.Quad1=row[Quad1]
+        self.Quad2=row[Quad2]
+        self.ID=int(0)
+        self.feature=row[feature]
+        if row[jxn_x]!='err' and row[jxn_x]!='nan' and row[jxn_x]!='nan' and row[jxn_y]!='nan':
+            try:
+                self.j0_x=float(row[jxn_x])
+            except:
+                print row
+                print row[jxn_x]
+                print jabber
+            try:
+                self.j0_y=float(row[jxn_y])
+            except:
+                print row
+                print jabber
+            try:
+##                self.x_min, self.x_max=[toInt( s) for s in row[range_x].split(';')]
+                self.err_1=float( row[range_x])
+            except:
+                self.err_1=numpy.nan()
+            try:
+                self.err_2=float(row[range_y])
+            except:
+                self.err_2=numpy.nan()
+##                print row[range_x].split('-')
+##                print jabber
+        else: self.j0_x,self.j0_y, self.err_1, self.err_2 =numpy.nan, numpy.nan, numpy.nan,numpy.nan
+
+        self.CI=0
+        self.ID=row[ counter]
+        self.exact=False
+        self.count=int(row[count])
+        try:
+
+            self.x_list=[int(x) for x in row[x_list].split(';')]
+            self.y_list=[int(y) for y in row[y_list].split(';')]
+        except:
+            self.x_list=[]
+            self.y_list=[]
+        try:
+
+            self.x5_list=[int(x) for x in row[x5_list].split(';')]
+            self.y5_list=[int(y) for y in row[y5_list].split(';')]
+        except:
+            self.x5_list=[]
+            self.y5_list=[]
+        try:
+            self.CigarX=[x for x in row[cigar_x].split(';')]
+            self.CigarY=[y for y in row[cigar_y].split(';')]
+        except:
+            self.CigarX=[]
+            self.CigarY=[]
+
+        self.MD_X=[x.split(':')[-1] for x in row[MD_x].split(';')]
+        self.MD_Y=[y.split(':')[-1] for y in row[MD_y].split(';')]
+
+        try:
+            self.MapQX=[int(x) for x in row[mapQ_x].split(';')]
+            self.MapQY=[int(y) for y in row[mapQ_y].split(';')]
+        except:
+            self.MapQX=[]
+            self.MapQY=[]
+        if len(row)>21:
+            self.optional=row[21:]
+            self.barcodes=row[21].split(';')
+        else: self.optional, self.barcodes =[],[]
+
+        self.labels=["ID: {0}, Read Count: {1}".format(self.ID,self.count)]*count
+
+    def __repr__(self):
+        print "Seq1: {0}\tSeq2: {1}\nQuadrant: ({2}, {3}); ID: {4}".format(self.Seq1, self.Seq2, self.Quad1, self.Quad2, self.ID)
+        print "J0: ({0}, {1}); Exact: {2} Offset: {3} +/- {4}".format(self.j0_x, self.j0_y, self.exact, self.offset, self.CI)
+        print "Read Count: {0}".format(self.count)
+        if len (self.x_list)<=20:
+            print "X positions: {0}".format(','.join([str(x) for x in self.x_list]))
+            print "Y positions: {0}".format(','.join([str(y) for y in self.y_list]))
+        else:
+            print "X positions: {0},...,{1}".format(','.join([str(x) for x in self.x_list[:10]]),','.join([str(x) for x in self.x_list[10:]]))
+            print "Y positions: {0},...,{1}".format(','.join([str(y) for y in self.y_list[:10]]),','.join([str(y) for y in self.y_list[10:]]))
+        return ''
+
+    def row(self):
+        Identifier=[self.Seq1, self.Seq2, self.Quad1, self.Quad2,  self.feature]
+        jxn=[self.j0_x,  self.j0_y, self.err_1, self.err_2]
+        positions=[self.count,';'.join([str(x) for x in self.x_list]), ';'.join([str(y) for y in self.y_list]),';'.join([str(x) for x in self.x5_list]), ';'.join([str(y) for y in self.y5_list]), ';'.join([str(x) for x in self.MapQX]), ';'.join([str(y) for y in self.MapQY]), self.ID, ';'.join([str(x) for x in self.CigarX]), ';'.join([str(y) for y in self.CigarY]), ';'.join([str(x) for x in self.MD_X]), ';'.join([str(y) for y in self.MD_Y])]
+        return (Identifier+jxn+positions+ self.optional)
+
+    def inverse_row(self):
+        Identifier=[self.Seq2, self.Seq1, self.Quad2, self.Quad1, self.feature]
+        jxn=[self.j0_y, self.j0_x,self.err_1, self.err_2]
+        positions=[self.count,';'.join([str(y) for y in self.y_list]), ';'.join([str(x) for x in self.x_list]),';'.join([str(y) for y in self.y5_list]), ';'.join([str(x) for x in self.x5_list]), ';'.join([str(y) for y in self.MapQY]), ';'.join([str(x) for x in self.MapQX]), self.ID, ';'.join([str(y) for y in self.CigarY]), ';'.join([str(x) for x in self.CigarX]), ';'.join([str(y) for y in self.MD_Y]), ';'.join([str(x) for x in self.MD_X])]
+
+        return (Identifier+jxn+positions+ self.optional)
+
+    def ClassifyJunction(self):
+        if self.feature=='Consensus': return ()
+        unique_reads=len(set(self.x5_list ))*len(set(self.y5_list))
+        if unique_reads==1:
+            self.feature='Probable Artifact'
+            return()
+        if self.Seq1!=self.Seq2: return ()
+        if self.Quad1=='-' and self.Quad2=='+':
+            if self.j0_x<self.j0_y: self.feature='Tandem'
+            else: self.feature='Deletion'
+        if self.Quad1==self.Quad2:
+            self.feature='Inversion'
+
+
+
+
 class FileManager():
     """A class for opening many handles at once"""
     def __init__(self, maxfiles=100, delimiter='', mode='w'):

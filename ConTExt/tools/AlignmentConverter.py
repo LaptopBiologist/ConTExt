@@ -621,7 +621,7 @@ def DebugConvertSAMFromInsertionsToConsensus(inSam, conversionFile):
     return convertCount, total, convertCount/total
 
 
-def ConvertSAMFromInsertionsToConsensus(inSam, conversionFile, consensus_file=''):
+def ConvertSAMFromInsertionsToConsensus(inSam, conversionFile, consensus_file='', replace_input=True):
     #Read the conversion table
     #   consDict is used to identify reads that already align to the consensus
     #   insDict is used to identify which reads are aligned to insertions
@@ -735,8 +735,10 @@ def ConvertSAMFromInsertionsToConsensus(inSam, conversionFile, consensus_file=''
             tempTable.writerow(line.row())
     inHandle.close()
     tempHandle.close()
-    os.remove(inSam)
-    os.rename(tempFile, inSam)
+
+    if replace_input==True:
+        os.remove(inSam)
+        os.rename(tempFile, inSam)
     print timer_conv, timer_md
     return convertCount, total, convertCount/total
 
@@ -1175,7 +1177,10 @@ def main(argv):
         elif param['-fxn'].lower()=='convert':
             samFile=param['-i']
             convFile=param['-conv']
-            convertCount, total, percent=ConvertSAMFromInsertionsToConsensus(samFile, convFile)
+            if param.has_key('-replace')==True:
+               replace=bool( param['-replace'])
+            else: replace=False
+            convertCount, total, percent=ConvertSAMFromInsertionsToConsensus(samFile, convFile, replace_input=replace)
             print "Converted {0} out of {1} insertion alignments to consensus alignments ({2}%)".format(convertCount, total, percent*100.)
 
     except:

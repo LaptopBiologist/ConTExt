@@ -880,7 +880,7 @@ def AgglomerateModels(theta):
 #Feeding ConTExt output throught the EM algorithm
 
 
-def ClusterDirectory(indir, outfile, dist_file, cov, ref_dict, GemCode=False, sequence_to_cluster=['2L', '3L', '2R', '3R', 'X', '4', 'U']):
+def ClusterDirectory(indir, outfile, dist_file, cov, ref_dict, sequences_to_cluster, GemCode=False):
 
     """Iterate through each file in the directory indir, fit GMMs to the read pair
     distributions and write the output to outfile."""
@@ -908,7 +908,7 @@ def ClusterDirectory(indir, outfile, dist_file, cov, ref_dict, GemCode=False, se
         file_root='.'.join( f.split('.')[:-1])
 ##        if f[0]=='(':continue
 ##        if file_root!= 'Jockey-3_DSim': continue
-        if sequence_to_cluster.has_key (file_root)==False: continue
+        if sequences_to_cluster.has_key (file_root)==False: continue
         infile='{0}/{1}'.format(indir, f)
         Pair_List, read_time, cluster_time, write_time, cluster_count=ClusterFile(infile, outTable, Pair_List, cov, k, p, ref_dict, cluster_count, regression_coefficients, GemCode)
 
@@ -1953,7 +1953,7 @@ def main(argv):
     refFile=spec_dict['Ref']
     consFile=spec_dict['Cons']
     ref_seq=GetLengths(refFile)
-    cons_seq=GetLengths('consFile')
+    cons_seq=GetLengths(consFile)
     #Pipeline to cluster a directory of alignment outputs
     count=0
 
@@ -2047,7 +2047,7 @@ def main(argv):
             #So the mean insert size should generally be larger than the
             #optimal 1st eigenvector
 
-            cov1=mean_insert_size*4./3.
+            cov1=mean_insert_size*1.5
         else:
             assert type( spec_dict['Cov1'])==float, '!Cov1 must either be a float or AUTO.'
             cov1=float( spec_dict['Cov1'])
@@ -2119,7 +2119,7 @@ def main(argv):
         summary_table.writerow(sample_summary)
         summary_handle.flush()
 ##        ValidateDirectory(directory,val_file, dist_file, cov_opt, distance_cutoff)
-        ClusterDirectory(directory,output_file, dist_file, cov_opt,ref_seq, GemCode, sequences_to_cluster=cons_seq)
+        ClusterDirectory(directory,output_file, dist_file, cov_opt,ref_seq, cons_seq , GemCode)
 
 if __name__ == '__main__':
     main(sys.argv)
