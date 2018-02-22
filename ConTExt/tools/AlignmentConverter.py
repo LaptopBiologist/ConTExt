@@ -1177,6 +1177,7 @@ def main(argv):
         elif param['-fxn'].lower()=='convert':
             samFile=param['-i']
             convFile=param['-conv']
+            consFile=param['-cons']
             if param.has_key('-replace')==True:
                replace=bool( param['-replace'])
             else: replace=False
