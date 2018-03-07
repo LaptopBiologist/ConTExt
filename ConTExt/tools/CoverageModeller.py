@@ -426,9 +426,13 @@ def FastHistoKDE_BW(histo, bw, ignore_zero=True, kernel='norm', var_array=[]):
     where sum_x' sums over all bins in the histogram, and K_bw(x,x') is the kernel function with bandwidth bw"""
 
     bw=float(bw)
-    if ignore_zero==True:   #If true, ignore the bin counting positions with zero read depth; may not represent single copy sequence, so more error in this estimate
-        histo[0]=histo[1] #Fill in the zero with the observed frequency of positions with read depth equals 1
-        histo/=sum(histo) #Renormalize
+    try:
+        if ignore_zero==True:   #If true, ignore the bin counting positions with zero read depth; may not represent single copy sequence, so more error in this estimate
+            histo[0]=histo[1] #Fill in the zero with the observed frequency of positions with read depth equals 1
+            histo/=sum(histo) #Renormalize
+    except:
+        pass
+
     n=sum(histo)
     x1=numpy.arange(0, len(histo)) #The domain of all possible x'
     x2=numpy.arange(0, len(histo))
@@ -507,10 +511,10 @@ def OptimizeInRange(samples, param):
 
             f1,f2=sample
 
-            kde=FastHistoKDE_BW(f1,float( bw), False )
+            kde=FastHistoKDE_BW(f1,float( bw), True )
             entropy+=( (kde-f2)**2).sum()/len(f2)
 
-            kde=FastHistoKDE_BW(f2,float( bw), False )
+            kde=FastHistoKDE_BW(f2,float( bw), True )
             entropy+=( (kde-f1)**2).sum()/len(f2)
 
         entropy_list.append(entropy/(2*fold))
@@ -554,8 +558,8 @@ def SmoothCvgByGC(table):
             continue
         bw=Cross_validate(table_at_gc, 0, 100, 10, 3)
         print "{0}\t{1}".format( i, bw)
-        kde_autosome=FastHistoKDE_BW(table_at_gc.sum(1)/4., bw, True)
-        kde_x=FastHistoKDE_BW(table[i,:,4], bw, True)
+        kde_autosome=FastHistoKDE_BW(table_at_gc.sum(1)/4., bw, False)
+        kde_x=FastHistoKDE_BW(table[i,:,4], bw, False)
         autosome_list.append(kde_autosome)
         x_list.append(kde_x)
 ##        print i
@@ -577,7 +581,7 @@ def PlotCoverageScatters(table, read_depth, auto_kde=[], x_kde=[]):
 
 ##    pyplot.scatter( range(len(table[read_depth,:,i])), table[read_depth,:,:4].sum(1)/4., c='teal', s=80, label='Autosomes', alpha=.5  )
 
-    pyplot.plot(scipy.stats.poisson.pmf(range(len(table[read_depth,:,i])),28))
+##    pyplot.plot(scipy.stats.poisson.pmf(range(len(table[read_depth,:,i])),28))
     if auto_kde!=[]: pyplot.plot(auto_kde[read_depth], lw=2, c='indianred')
     if x_kde!=[]: pyplot.plot(x_kde[read_depth], lw=2, c='powderblue')
     pyplot.legend()

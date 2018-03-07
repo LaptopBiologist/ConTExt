@@ -10,7 +10,6 @@
 # Licence:     <your licence>
 #-------------------------------------------------------------------------------
 import numpy
-import scipy
 from Bio import SeqIO
 from Bio.Seq import Seq
 import sklearn.neighbors
@@ -18,12 +17,7 @@ from matplotlib import pyplot
 import seaborn
 import vptree
 import time
-try:
-    import redis
-    import persistentdict
-    import redis_collections
-except:
-    print "Failed to import Redis and persistentdict; the SeedIndex must be stored internally."
+
 IUPAC_DICT={'W':['A','T'], 'S':['C','G'], 'M':['A','C'],\
  'K':['G','T'], 'R':['A','G'], 'Y':['C','T'],\
  'B':['C','G','T'], 'D':['A','G','T'], 'H':['A','C', 'T'],\
@@ -36,6 +30,7 @@ def ReplaceAmbiguousNucleotides(sequence):
         amb_ind=numpy.where(seq_array==ambiguous_nt)[0]
         replacement_nt=numpy.random.choice(IUPAC_DICT[ambiguous_nt], size=len(amb_ind), replace=True)
         seq_array[amb_ind]=replacement_nt
+    seq_array
     return ''.join(seq_array)
 
 def UnambiguousFASTA(infile, outfile):
@@ -48,25 +43,19 @@ def UnambiguousFASTA(infile, outfile):
     outhandle.close()
 
 class SeedIndex():
-    def __init__(self,infile, k=15, prefix_length=6, store_externally=True):
+    def __init__(self,infile, k=15, prefix_length=6):
         """Create a structure for fast KNN-searches of kmers in the set of consensus
     sequences"""
-        self.redis_persistence=store_externally
+
         self.k=k
         self.count=0
         self.prefix_length=prefix_length
         self.consensus_sequences=self.GetSeq(infile)
-        if self.redis_persistence==True:
-            self.kmer_location_dict=redis_collections.dicts.Dict(writeback=True)
-            self.prefix_dictionary=redis_collections.dicts.Dict(writeback=True)
 
-        else:
-            self.kmer_location_dict={}
-            self.prefix_dictionary={}
+        self.kmer_location_dict={}
+        self.prefix_dictionary={}
 
-        for seqname in self.consensus_sequences:
-##            if self.count>100000: print jabber
-            self.index_kmers(seqname, k)
+        self.index_kmers(self.consensus_sequences, k)
 
         kmers=[K.upper() for K in self.kmer_location_dict.keys()]
 
@@ -84,46 +73,47 @@ class SeedIndex():
 
 ##        return tree_dict
 
-    def query_read(self,read, seed_spacing=.8):
+    def query_read(self,read, seed_spacing=.8, qual=''):
         #Decompose the read into seeds
         #If seed spacing is less than 1, seeds overlap and every nucleotide
         #in the read is used
+        read_len=len(read)
         seeds, step_size=self.decompose_read(read, seed_spacing)
 
         #Wrt the Hamming metric ind the 10 nearest neighbors of each seed in the
         #consensus index
-        hits=[self.query_seed(seed) for seed in seeds ]
+
+        query_hits=[self.query_seed(seed) for seed in seeds ]
+        hits,sequence_hits=zip(*query_hits)
 
         #Determine the location of each neighbor kmer
-        location_dictionary={}
+        location_dictionary={'pos':[], 'dist':[], 'seed':[], 'sequence':[]}
         for i,hit in enumerate( hits):
-            for seq_name in hit.keys():
-                if location_dictionary.has_key(seq_name)==False:
-                    location_dictionary[seq_name]={}
-                for strand in hit[seq_name].keys():
-                    if location_dictionary[seq_name].has_key(strand)==False:
-                        location_dictionary[seq_name][strand]={'pos':[], 'dist':[], 'seed':[], 'sequence':[]}
-                    location_dictionary[seq_name][strand]['pos']+=hit[seq_name][strand]['pos']
-                    location_dictionary[seq_name][strand]['dist']+=hit[seq_name][strand]['dist']
-                    location_dictionary[seq_name][strand]['seed']+=[step_size[ i]]*len(hit[seq_name][strand]['dist'])
-                    location_dictionary[seq_name][strand]['sequence']+=[i]*len(hit[seq_name][strand]['dist'])
-        for seq in location_dictionary.keys():
-            for strand in location_dictionary[seq].keys():
-                sort_ind=numpy.argsort(numpy.array(location_dictionary[seq][strand]['pos']))
 
-                location_dictionary[seq][strand]['array']=numpy.array(\
-                                [location_dictionary[seq][strand]['pos'],\
-                                location_dictionary[seq][strand]['dist'],\
-                                location_dictionary[seq][strand]['seed'],\
-                                location_dictionary[seq][strand]['sequence']], )[:,sort_ind]
+                location_dictionary['pos']+=hit['pos']
+                location_dictionary['dist']+=hit['dist']
+                location_dictionary['seed']+=[step_size[ i]]*len(hit['dist'])
+                location_dictionary['sequence']+=[i]*len(hit['dist'])
+
+
+
+        sort_ind=numpy.argsort(numpy.array(location_dictionary['pos']))
+
+        location_dictionary['array']=numpy.array(\
+                        [location_dictionary['pos'],\
+                        location_dictionary['dist'],\
+                        location_dictionary['seed'],\
+                        location_dictionary['sequence']], )[:,sort_ind]
 ##                location_dictionary[seq][strand]['dist']=numpy.array(location_dictionary[seq][strand]['dist'])[sort_ind]
 ##                location_dictionary[seq][strand]['seed']=numpy.array(location_dictionary[seq][strand]['seed'])[sort_ind]
-                if len(location_dictionary[seq][strand]['pos'])>1:
-                    split_ind=self.ClusterByDistances(location_dictionary[seq][strand]['array'][0,:])
-                    splits=numpy.split(location_dictionary[seq][strand]['array'], split_ind, 1)
+        if len(location_dictionary['pos'])>1:
+            split_ind=self.ClusterByDistances(location_dictionary['array'][0,:], read_len)
+            splits=numpy.split(location_dictionary['array'], split_ind, 1)
+
         #Organize the locations of these kmers into alignments
 
-        return location_dictionary
+        return location_dictionary, splits, sequence_hits
+
 
     def ClusterByDistances(self, posList, distance_cutoff=30 ):
         """Taking a list of read positions sorted by chromosome position as input,
@@ -151,22 +141,16 @@ class SeedIndex():
         #score matches based on quality scores
 
         #return locations
-        hits=[self.prefix_dictionary[query_prefix][i] for i in indexes[0]]
-        location_dictionary={}
-        for i,hit in enumerate( hits):
+        hits=[query_prefix+self.prefix_dictionary[query_prefix][i] for i in indexes[0]]
 
-            for seq_name in self.kmer_location_dict[hit].keys():
-                if location_dictionary.has_key(seq_name)==False:
-                    location_dictionary[seq_name]={}
-                for strand in self.kmer_location_dict[hit][seq_name].keys():
-                    if location_dictionary[seq_name].has_key(strand)==False:
-                        location_dictionary[seq_name][strand]={'pos':[], 'dist':[]}
-                    location_dictionary[seq_name][strand]['pos']+=self.kmer_location_dict[hit][seq_name][strand]
-                    location_dictionary[seq_name][strand]['dist']+=[edit_distances[i]]*len(self.kmer_location_dict[hit][seq_name][strand])
+        location_dictionary={'pos':[], 'dist':[]}
+        for i,hit in enumerate( hits):
+            location_dictionary['pos']+=self.kmer_location_dict[hit]
+            location_dictionary['dist']+=[edit_distances[i]]*len(self.kmer_location_dict[hit])
 ##                    print edit_distances[i]
 
 
-        return location_dictionary
+        return location_dictionary, hits
 
     def decompose_read(self, read, seed_spacing=.8):
         seed_length=self.k
@@ -180,16 +164,18 @@ class SeedIndex():
         Bio.Seq objects."""
         handle=open(ref, 'r')
         lib=SeqIO.parse(handle, 'fasta')
-        SeqLen={}
+        SeqLen=''
+        SeqLen_rc=''
         for rec in lib:
-            SeqLen[rec.name]=rec.seq
-        handle.close()
-        return SeqLen
+            SeqLen+=str(rec.seq).upper()
 
-    def index_kmers(self,seqname, k=15):
+        handle.close()
+        return  Seq (SeqLen)
+
+    def index_kmers(self,sequence, k=15):
 
         """Decomposes sequence into kmers."""
-        sequence=self.consensus_sequences[seqname]
+
         seq_len=len(sequence)
         indices= range(0,len(sequence)-k+1)
 
@@ -198,33 +184,52 @@ class SeedIndex():
 ##            if self.count>100000: break
             kmer=str(sequence[x:x+k])
             try:
-                test_query=self.kmer_location_dict[kmer]
+                self.kmer_location_dict[kmer].append(x)
             except:
-                self.kmer_location_dict[kmer]={}
-            try: self.kmer_location_dict[kmer][seqname]['+'].append(x)
-            except:
-                    self.kmer_location_dict[kmer][seqname]={}
-                    self.kmer_location_dict[kmer][seqname]['+']=[x]
+                self.kmer_location_dict[kmer]=[x]
 
 
             #Add the reverse complement
-##            try:
-##                kmer_rc=str(sequence[x:x+k].reverse_complement())
-##                try:
-##                    test_query=self.kmer_location_dict[kmer_rc]
-##                except:
-##                    self.kmer_location_dict[kmer_rc]={}
-##
-##                try: self.kmer_location_dict[kmer_rc][seqname]['-'].append(x)
-##                except:
-##                        self.kmer_location_dict[kmer_rc][seqname]={}
-##                        self.kmer_location_dict[kmer_rc][seqname]['-']=[x]
-##
-##
-##            except:
-##                p=0
+            try:
+                kmer_rc=str(sequence[x:x+k].reverse_complement())
+                try:
+                    self.kmer_location_dict[kmer_rc].append(-1*x)
+                except:
+                    self.kmer_location_dict[kmer_rc]=[-1*x]
 
-def FindAlignments( seed_alignments,read, qual):
+
+
+
+            except:
+                p=0
+
+def FindAlignments( seed_alignments, read,quality, index, seed_len=20, phred=33):
+
+    sort_ind=numpy.argsort(seed_alignments[1])
+    if len(sort_ind)==1: return 100
+    qual=numpy.array([ord(s)-phred for s in quality])
+
+    read_array=numpy.fromstring(read, '|S1')
+    mismatches=0
+    for i in sort_ind:
+        pos=seed_alignments[0, i]
+        hit=index.consensus_sequences[abs(int(pos)):abs(int(pos))+20]
+        if pos<0: hit=hit.reverse_complement()
+        hit=numpy.fromstring(str(hit),'|S1')
+        read_start=int(seed_alignments[2,i])
+        read_slice=read_array[read_start:read_start+seed_len]
+        qual_slice=qual[read_start:read_start+seed_len]
+##        print qual_slice
+##        print read_slice
+##        print read_slice!=hit
+        mismatches+=(qual_slice*(read_slice!=hit)) [read_slice!='N'].sum()
+        read_array[read_start:read_start+seed_len]='N'
+##    indel= (abs((numpy.diff(seed_alignments[0,:])-numpy.diff(seed_alignments[2,:]))))
+##    indel[indel!=0]=1
+##    indel=indel.sum()
+
+
+    return mismatches+40*(read_array!='N').sum()/20.
 
 
     pass
