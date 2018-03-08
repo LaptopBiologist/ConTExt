@@ -9,16 +9,21 @@
 # Licence:     <your licence>
 #-------------------------------------------------------------------------------
 import numpy
+
 import scipy
 import scipy.stats
 import scipy.spatial
+
 import os
 import sys
 import csv
 import time
+import shutil
+
 from tools.General_Tools import *
 
 csv.field_size_limit(sys.maxsize)
+
 #------------------------------------------------------------------------------#
 #
 #Object classes
@@ -155,6 +160,58 @@ class ClusterInformation():
         self.pos_x+=new_jxn.pos_x
         self.pos_y+=new_jxn.pos_y
         self.IDs+=new_jxn.IDs
+
+#------------------------------------------------------------------------------#
+#
+#
+#
+#------------------------------------------------------------------------------#
+
+
+def BuildMetaTable(indir, in_tail, outdir):
+    MakeDir(outdir)
+    MakeDir(outdir+'/cvg_dist')
+    files=os.listdir(indir)
+    image_directory={}
+    for f in files:
+
+        #Only process files with the appropriate tag
+        filename=f.split('/')[-1]
+        root=filename.split('.')[0]
+        tail=root.split('_')[-1]
+        name='_'.join(root.split('_')[:-1])
+        if tail=='auto':
+            src=indir+'/'+f
+            dest=outdir+'/cvg_dist/'+f
+            shutil.copy2(src, dest)
+        if tail!=in_tail: continue
+        print name
+
+        inhandle=open(indir+'/'+f, 'r')
+        intable=csv.reader(inhandle, delimiter= '\t')
+        intable.next()
+        for row in intable:
+            line=cluster(row)
+            image=line.Seq1
+            if image_directory.has_key(image)==False:
+                image_directory[image]=[]
+            out_line=[name, line.ID, line.Seq1, line.Seq2, line.Quad1, line.Quad2, line.feature, line.count, line.j0_x, line.j0_y,line.err_1, line.err_2, line.count,row[-4], row[-3], row[-2], row[-1] ]
+            image_directory[image].append(out_line)
+            if line.Seq1!=line.Seq2:
+                image=line.Seq2
+                if image_directory.has_key(image)==False:
+                    image_directory[image]=[]
+                out_line=[name, line.ID, line.Seq2, line.Seq1, line.Quad2, line.Quad1, line.feature, line.count, line.j0_y, line.j0_x,line.err_1, line.err_2, line.count,row[-4], row[-3], row[-2], row[-1] ]
+                image_directory[line.Seq2].append(out_line)
+        inhandle.close()
+    #Write the output files
+    for key in image_directory.keys():
+        outfile=outdir+'/'+key+'.tsv'
+        outhandle=open(outfile, 'w')
+        outtable=csv.writer(outhandle, delimiter='\t')
+        for line in image_directory[key]:
+            outtable.writerow(line)
+        outhandle.close()
 
 
 #------------------------------------------------------------------------------#
@@ -407,6 +464,7 @@ def BuildErrorDict(infile, ref_file, cons_file):
 
         error_dict[sample][repeat][strand].append([new_X,new_Y,count_1, count_2])
         if repeat.split('_')[-1]=='LTR':data_dict[sample].append([new_X,new_Y,count_1, count_2])
+        elif repeat.find('LTR')!=-1:data_dict[sample].append([new_X,new_Y,count_1, count_2])
 
     for key in data_dict.keys():
         data_dict[key]=numpy.array(data_dict[key])
@@ -997,10 +1055,14 @@ def MahalanobisDistance(point, data, prec):
 def ClusterMetatables(indir, outdir, specification):
 
     MakeDir(outdir)
+
+    spec_dict=ReadSpecificationFile(specification)
+    metatable_dir=outdir+'/metatables'
+    print "Building metatables."
+    BuildMetaTable(indir,'outCN',metatable_dir)
+    metatables=LoadMetaTables(metatable_dir, spec_dict['CV'])
     print ("Calling TE insertions in the reference chromosomes")
     insertion_file='{0}/TE_insertions.tsv'.format(outdir)
-    spec_dict=ReadSpecificationFile(specification)
-    metatables=LoadMetaTables(indir, spec_dict['Insertion_Chromosomes'])
     insertions=FindInsertionsFromJunctions(metatables, spec_dict['Masked'])
     WriteInsertionTable(insertions, insertion_file)
 ##    BuildErrorDict(insertion_file, spec_dict['Masked'], spec_dict['Cons']  )
@@ -1020,9 +1082,9 @@ def main(argv):
 
     if param=={}:
         return
-    indir=param['--in']
-    outdir=param['--out']
-    spec_file=param['--spec']
+    indir=param['-i']
+    outdir=param['-o']
+    spec_file=param['-spec']
     ClusterMetatables(indir, outdir, spec_file)
 
     pass

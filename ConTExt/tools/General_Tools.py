@@ -13,6 +13,7 @@ from Bio import SeqIO
 import numpy
 import gzip
 import csv
+import os
 
 class cluster():
     def __init__(self, row , Seq1=0, Seq2=1, Quad1=2, Quad2=3,\
