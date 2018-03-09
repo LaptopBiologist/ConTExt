@@ -638,7 +638,7 @@ def ReadMetaTableAsDictionary (infile, err_dict, emp=True, exclude_cons=True):
         read_count=min(10000, line.readcount)
         sample=line.sample
 
-        if exclude_cons==True and line.seq1==line.seq2 and quad[0]!=quad[1] and (line.x-line.y<-400 or line.x -line.y>100) : continue
+        if exclude_cons==True and line.seq1==line.seq2 and quad[0]!=quad[1] and (line.x-line.y>-400 and line.x -line.y<100) : continue
         if err_dict.has_key(sample)==False: continue
 
         if emp==True:
@@ -1066,7 +1066,7 @@ def ClusterMetatables(indir, outdir, specification):
     insertions=FindInsertionsFromJunctions(metatables, spec_dict['Masked'])
     WriteInsertionTable(insertions, insertion_file)
 ##    BuildErrorDict(insertion_file, spec_dict['Masked'], spec_dict['Cons']  )
-    ClusterDirectory(indir, outdir, insertion_file, spec_dict['Masked'], spec_dict['Cons'] )
+    ClusterDirectory(metatable_dir, outdir, insertion_file, spec_dict['Masked'], spec_dict['Cons'] )
 
 
 def main(argv):
