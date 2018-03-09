@@ -23,15 +23,9 @@ REQUIRED = ['numpy>=1.10.4', 'scipy>=0.17.1', 'Biopython>=1.6.8', 'matplotlib>=1
 'seaborn>=0.7.1'    # 'requests', 'maya', 'records',
 ]
 
-# The rest you shouldn't have to touch too much :)
-# ------------------------------------------------
-# Except, perhaps the License and Trove Classifiers!
-# If you do change the License, remember to change the Trove Classifier for that!
-
 here = os.path.abspath(os.path.dirname(__file__))
 
 # Import the README and use it as the long-description.
-# Note: this will only work if 'README.rst' is present in your MANIFEST.in file!
 with io.open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = '\n' + f.read()
 
@@ -84,8 +78,7 @@ setup(
     author_email=EMAIL,
     url=URL,
     packages=find_packages(exclude=('tests',)),
-    # If your package is a single module, use this instead of 'packages':
-    # py_modules=['mypackage'],
+
 
     # entry_points={
     #     'console_scripts': ['mycli=mymodule:cli'],
