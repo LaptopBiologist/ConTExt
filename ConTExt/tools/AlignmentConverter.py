@@ -416,7 +416,7 @@ def BlastSequences(Query, Subject, Out, name, BlastDir):
     print (OutPath)
     errlog=open(OutPath+'/_err.log', 'a')
     column_spec='10 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue btop'
-    BLAST=subprocess.Popen([BlastDir+'/bin/blastn', '-query',Query, '-subject',Subject, '-outfmt', column_spec,  '-out', OutFile], stderr=errlog)
+    BLAST=subprocess.Popen([BlastDir, '-query',Query, '-subject',Subject, '-outfmt', column_spec,  '-out', OutFile], stderr=errlog)
     BLAST.communicate()
     errlog.close()
     return OutFile
@@ -1154,9 +1154,7 @@ def main(argv):
     param={}
     print argv
     if len(argv)==1: return
-    if argv[1]=='-help':
-        print """I am currently too lazy to write instructions."""
-        return
+
     for i in range(1, len(argv), 2):
         param[argv[i]]= argv[i+1]
     print param
@@ -1164,29 +1162,27 @@ def main(argv):
     if param=={}:
         return
 
-    try:
 
+    if param['-fxn'].lower()=='build':
+        consFile=param['-cons']
+        refFile=param['-ref']
+        gffFile=param['-gff']
+        outfile=param['-out']
+        blastdir=param['-BLAST']
+        PrepareConversionTable(consFile, refFile, gffFile, outfile, blastdir)
+    elif param['-fxn'].lower()=='convert':
+        samFile=param['-i']
+        convFile=param['-conv']
+        consFile=param['-cons']
+        if param.has_key('-replace')==True:
+           replace=bool( param['-replace'])
+        else: replace=False
+        convertCount, total, percent=ConvertSAMFromInsertionsToConsensus(samFile, convFile, consFile, replace_input=replace)
+        print "Converted {0} out of {1} insertion alignments to consensus alignments ({2}%)".format(convertCount, total, percent*100.)
 
-        if param['-fxn'].lower()=='build':
-            consFile=param['-cons']
-            refFile=param['-ref']
-            gffFile=param['-gff']
-            outfile=param['-out']
-            blastdir=param['-BLAST']
-            PrepareConversionTable(consFile, refFile, gffFile, outfile, blastdir)
-        elif param['-fxn'].lower()=='convert':
-            samFile=param['-i']
-            convFile=param['-conv']
-            consFile=param['-cons']
-            if param.has_key('-replace')==True:
-               replace=bool( param['-replace'])
-            else: replace=False
-            convertCount, total, percent=ConvertSAMFromInsertionsToConsensus(samFile, convFile, consFile, replace_input=replace)
-            print "Converted {0} out of {1} insertion alignments to consensus alignments ({2}%)".format(convertCount, total, percent*100.)
-
-    except:
-        print """python AlignmentConverter.py -help for instructions."""
-
+##    except:
+##        print """python AlignmentConverter.py -help for instructions."""
+##
 
     #inDir, outDir, AssemblyIndex, TEIndex, threads, length=70, ReadIDPosition=1, PositionRange=0, phred=33, shorten=True, Trim=True
 

@@ -1066,7 +1066,8 @@ def ClusterMetatables(indir, outdir, specification):
     insertions=FindInsertionsFromJunctions(metatables, spec_dict['Masked'])
     WriteInsertionTable(insertions, insertion_file)
 ##    BuildErrorDict(insertion_file, spec_dict['Masked'], spec_dict['Cons']  )
-    ClusterDirectory(metatable_dir, outdir, insertion_file, spec_dict['Masked'], spec_dict['Cons'] )
+    cluster_dir=outdir+'/cluster_tables'
+    ClusterDirectory(metatable_dir, cluster_dir, insertion_file, spec_dict['Masked'], spec_dict['Cons'] )
 
 
 def main(argv):
