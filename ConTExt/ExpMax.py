@@ -1225,20 +1225,20 @@ def ClusterImage(image, quadrant, cov, lines, self_self_image, dist,nonconcordan
 
     good_clustering=numpy.nan
     max_distance=abs(numpy.max( nonconcordantReads[1,:])-numpy.min( nonconcordantReads[1,:]))
-    if max_distance<=100000:
-        #Cluster the scatterplot with SquareEM, check whether the the algorithm has converged
-        #and if it has not, repeat until it converges.
-        while numpy.isnan( good_clustering)==True or numpy.isinf( good_clustering)==True:
-            final_theta, final_labels, final_Lk= SquareEM(nonconcordantReads.transpose(), cov, components, 200, Agglomerate=agg_Bool, seed_size=block_size, verbose=True)
-            print "Likelihood is {0}  after {1} iterations".format(final_Lk[-1],len(final_Lk))
-            if numpy.isnan( final_Lk[-1])==True or numpy.isinf(final_Lk[-1])==True:
-                print '\t\t\tFailed to converge. Retrying.'
-            good_clustering=final_Lk[-1]
+##    if max_distance<=100000:
+    #Cluster the scatterplot with SquareEM, check whether the the algorithm has converged
+    #and if it has not, repeat until it converges.
+    while numpy.isnan( good_clustering)==True or numpy.isinf( good_clustering)==True:
+        final_theta, final_labels, final_Lk= SquareEM(nonconcordantReads.transpose(), cov, components, 200, Agglomerate=agg_Bool, seed_size=block_size, verbose=True)
+        print "Likelihood is {0}  after {1} iterations".format(final_Lk[-1],len(final_Lk))
+        if numpy.isnan( final_Lk[-1])==True or numpy.isinf(final_Lk[-1])==True:
+            print '\t\t\tFailed to converge. Retrying.'
+        good_clustering=final_Lk[-1]
 
 
-        print "\t\t\tConverged."
-    else:
-        final_labels=AgglomerativeClustering(nonconcordantReads[1,:],400)
+    print "\t\t\tConverged."
+##    else:
+##        final_labels=AgglomerativeClustering(nonconcordantReads[1,:],400)
     reads_x, reads_y, labels=nonconcordantReads[0,:], nonconcordantReads[1,:], final_labels
     #Create output clusters
 
