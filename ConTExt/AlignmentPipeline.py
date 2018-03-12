@@ -201,8 +201,6 @@ def FindInput(inDir):
 
 def TrimReads(inDir, root, fType, outDir,threads, logfile, TrimPath, phred=64):
     """Calls Trimmomatic to preprocess reads. Uses settings:
-
-    ILLUMINACLIP:adapters/TruSeq2-PE.fa:4:30:10
     SLIDINGWINDOW:4:20
     MINLEN:40
 
@@ -227,13 +225,13 @@ def TrimReads(inDir, root, fType, outDir,threads, logfile, TrimPath, phred=64):
     badfile1=OutRoot+'_1_s.fq'
     badfile2=OutRoot+'_1_s.fq'
     #AdtFile='thornton_adt.fa'
-    AdtFile='adapters/TruSeq2-PE.fa'
+
 
     TempLog=open(OutRoot+'_log.txt', 'w')
 
     #Run Trimmomatic and create a log file
     p=subprocess.Popen(['java', '-jar', TrimPath, 'PE', Phred[phred], '-threads', threads, file1, file2\
-    , goodfile1, badfile1, goodfile2, badfile2, 'ILLUMINACLIP:'+AdtFile+':'+AdtSettings,'SLIDINGWINDOW:'+'4:20', 'MINLEN:'+'40'], \
+    , goodfile1, badfile1, goodfile2, badfile2, 'SLIDINGWINDOW:'+'4:20', 'MINLEN:'+'40'], \
     stderr=TempLog)
     #p=subprocess.Popen(['java', '-jar', TrimPath, 'PE', Phred[phred], file1, file2\
     #, goodfile1, badfile1, goodfile2, badfile2, 'ILLUMINACLIP:'+AdtFile+':'+AdtSettings], \
