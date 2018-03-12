@@ -219,14 +219,8 @@ def FindAlignments( seed_alignments, read,quality, index, seed_len=20, phred=33)
         read_start=int(seed_alignments[2,i])
         read_slice=read_array[read_start:read_start+seed_len]
         qual_slice=qual[read_start:read_start+seed_len]
-##        print qual_slice
-##        print read_slice
-##        print read_slice!=hit
         mismatches+=(qual_slice*(read_slice!=hit)) [read_slice!='N'].sum()
         read_array[read_start:read_start+seed_len]='N'
-##    indel= (abs((numpy.diff(seed_alignments[0,:])-numpy.diff(seed_alignments[2,:]))))
-##    indel[indel!=0]=1
-##    indel=indel.sum()
 
 
     return mismatches+40*(read_array!='N').sum()/20.
