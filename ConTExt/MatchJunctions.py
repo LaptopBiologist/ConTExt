@@ -19,8 +19,11 @@ import sys
 import csv
 import time
 import shutil
-
-from tools.General_Tools import *
+import pickle
+try:
+    from tools.General_Tools import *
+except:
+    print "Warning: Failed to import General_Tools"
 
 csv.field_size_limit(sys.maxsize)
 
@@ -464,7 +467,7 @@ def BuildErrorDict(infile, ref_file, cons_file):
 
         error_dict[sample][repeat][strand].append([new_X,new_Y,count_1, count_2])
         if repeat.split('_')[-1]=='LTR':data_dict[sample].append([new_X,new_Y,count_1, count_2])
-        elif repeat.find('LTR')!=-1:data_dict[sample].append([new_X,new_Y,count_1, count_2])
+
 
     for key in data_dict.keys():
         data_dict[key]=numpy.array(data_dict[key])
@@ -519,12 +522,24 @@ def PowerLaw(x,sig):
 #Clustering algorithms
 #
 #------------------------------------------------------------------------------#
-def ClusterDirectory(indir,outdir,insertion_file, ref_file, rep_file ):
-    err_dict, data_dict=BuildErrorDict(insertion_file, ref_file, rep_file)
-    cov_dict=EstimateCovariances(data_dict)
-    infile_list=os.listdir(indir)
+def ClusterDirectory(indir,outdir,insertion_file, ref_file, rep_file, cov_path='' ):
     MakeDir(outdir)
+    infile_list=os.listdir(indir)
+    if cov_path=='':
+        err_dict, data_dict=BuildErrorDict(insertion_file, ref_file, rep_file)
+        cov_dict=EstimateCovariances(data_dict)
+        cov_file='{0}/cov_dict.dict'.format(outdir)
+        cov_handle=open(cov_file, 'wb')
+        pickle.dump(cov_dict, cov_handle)
+        cov_handle.close()
+    else:
+        cov_handle=open(cov_path, 'rb')
+        cov_dict=pickle.load(cov_handle)
+        cov_handle.close()
+
+
     rep_len=GetLengths(rep_file)
+    failed_images=[]
     for infile in sorted( infile_list):
         if infile=='size_factors.tsv': continue
         ext=infile.split('.')[-1]
@@ -532,8 +547,14 @@ def ClusterDirectory(indir,outdir,insertion_file, ref_file, rep_file ):
 
         if ext!='tsv': continue
         if rep_len.has_key(name)==False: continue
-        ClusterFile('{0}/{1}'.format(indir, infile), '{0}/{1}'.format(outdir, infile), name, cov_dict, rep_len[name]>1000)
-
+        failed_images+= ClusterFile('{0}/{1}'.format(indir, infile), '{0}/{1}'.format(outdir, infile), name, cov_dict, rep_len[name]>1000)
+    if len(failed_images)==0:
+        print "All runs converged."
+    else:
+        print "The following runs failed to converge:"
+        for failed_run in failed_images:
+            seq1,seq2,quad=failed_run
+            print '\t{0},{1},{2}'.format(seq1, seq2, quad)
 def ClusterFile(infile, outfile, self_seq,  cov_dict, exclude_consensus=True ):
 
     outhandle=open(outfile, 'w')
@@ -543,28 +564,64 @@ def ClusterFile(infile, outfile, self_seq,  cov_dict, exclude_consensus=True ):
     fulltable=csv.writer(fullhandle, delimiter='\t')
     quadrants=[('-','-'), ('-','+'),('+','-'), ('+','+')]
     #Identify target sequences
-
+    print 'Opening file {0}...'.format(infile.split('/')[-1])
+    #Read in the file to cluster
+    #data: The location of the junctions
+    #errors: The covariance of the estimate, based on read depth and the sample
+    #           specific covariance
+    #samples: The sample names
+    #ID: the junction identification numbers
+    #CN: the copy of number of each junction
     data, errors, samples, ID, CN=ReadMetaTableAsDictionary(infile,cov_dict,emp= True)
+    number_junctions_in=0
+    number_junctions_out=0
+    failed_images=[]
     for seq in data.keys():
         for quad in data[seq].keys():
             #Read file
 
             if len(data[seq][quad])<2: continue
+            number_junctions_in+= len(data[seq][quad])
+
             #cluster data
             print "Clustering {0} {1}".format(seq, quad)
+            converged=False
+            mahalanobis_cutoff=1.
+            attempt_count=0
+            while converged==False:
+                cluster_output=CMeans(data[seq][quad], errors[seq][quad],'', 100, 200,mahalanobis_cutoff)
+                mahalanobis_cutoff*=.75
+                converged=cluster_output[-1]
+                attempt_count+=1
+                if attempt_count>=30: break
+            print attempt_count, mahalanobis_cutoff
+            if converged==False:
 
-            cluster_output=CMeans(data[seq][quad], errors[seq][quad],'', 100, 200)
+                failed_images.append((self_seq, seq, quad))
             cluster_assignments=cluster_output[1]
+##            print cluster_assignments
             #Organize the CMeans output
             jxn_tables, jxn_array, cluster_labels=BuildClusterTable(cluster_assignments, samples[seq][quad],data[seq][quad], ID[seq][quad], CN[seq][quad], cov_dict, exclude_consensus)
-
+            print 'Before correction: {0}'.format(jxn_tables.shape)
+            print cluster_labels
             #Fix mistakes
-            jxn_tables, cluster_assignments, cluster_labels=CorrectErrors(jxn_tables, data[seq][quad], cluster_assignments, cluster_labels)
-
-
+            print cluster_assignments
+            jxn_tables, cluster_assignments, cluster_labels, cluster_map=CorrectErrors(jxn_tables, data[seq][quad], cluster_assignments, cluster_labels)
+            print cluster_assignments
+            jxn_tables, jxn_array, cluster_labels=BuildClusterTable(cluster_assignments, samples[seq][quad],data[seq][quad], ID[seq][quad], CN[seq][quad], cov_dict, exclude_consensus)
+            print 'After correction: {0}'.format(jxn_tables.shape)
+            print cluster_labels
+            print cluster_map
+            start=number_junctions_out
             for i in range(len(cluster_labels)):
+                #What data points belong to the cluster
+                #   the value of the cluster_label is needed to determin the
+                #   data points
                 indices=cluster_assignments==cluster_labels[i]
-                label=cluster_labels[i]
+                #What row of the jxn_table corresponds to the cluster?
+                #   the index of the cluster_label is needed to determine the
+                #   location in the jxn_table
+                label=i
                 pulled_data=data[seq][quad][indices, :]
 ##                try:
                 if len(pulled_data)>1:
@@ -578,13 +635,17 @@ def ClusterFile(infile, outfile, self_seq,  cov_dict, exclude_consensus=True ):
                 except:
                     print jxn_tables.shape
                     print label
+                    print cluster_assignments
                     print cluster_labels
-                    print jabber
+                    copy_number=[str( x.CN) for x in jxn_tables[label,:]]
                 pos_x=[','.join( x.pos_x) for x in jxn_tables[label,:]]
                 pos_y=[','.join( x.pos_y) for x in jxn_tables[label,:]]
                 ids=[','.join( x.IDs) for x in jxn_tables[label,:]]
                 output_line=[';'.join((copy_number[index], pos_x[index], pos_y[index], ids[index])) for index in range (len(copy_number))]
                 CN_array=numpy.asarray(copy_number, float)
+
+                number_junctions_out+=sum([ len(( x.pos_y)) for x in jxn_tables[label,:]])
+
                 #Classify structure
                 feature='Junction'
                 if self_seq==seq:
@@ -598,10 +659,15 @@ def ClusterFile(infile, outfile, self_seq,  cov_dict, exclude_consensus=True ):
                 outtable.writerow(row)
                 row=[self_seq,seq, quad[0], quad[1], X,Y,numpy.mean(CN_array>0), numpy.mean(CN_array), feature]+ additional_info +output_line
                 fulltable.writerow(row)
+            print "Data in: {0}".format(len(data[seq][quad]))
+            print "Data out: {0}".format(number_junctions_out-start)
             outhandle.flush()
             fullhandle.flush()
     outhandle.close()
     fullhandle.close()
+
+    print "Evaluation: {0} junctions in.\n {1} junctions out.\nPassed test: {2}".format(number_junctions_in, number_junctions_out, number_junctions_in==number_junctions_out)
+    return failed_images
 
 def ReadMetaTableAsDictionary (infile, err_dict, emp=True, exclude_cons=True):
     """Read a metatable and output list of junctions and corresponding uncertainty measures"""
@@ -683,7 +749,9 @@ def BuildClusterTable(labels,samples,data, ids, CNs, cov_dict,exclude_consensus)
     for i in range(len(cluster_labels)):
         for j in range( len(sample_set)):
             jxn_array_rich[i,j]=ClusterInformation()
-    for l in cluster_labels:
+
+    for index,l in enumerate( cluster_labels):
+
 ##        print l
         cluster_ind=labels==l
         samples_with_jxn=samples[cluster_ind]
@@ -696,21 +764,27 @@ def BuildClusterTable(labels,samples,data, ids, CNs, cov_dict,exclude_consensus)
             samp_ind=numpy.where(sample_set==samples_with_jxn[i])[0]
             for s in samp_ind:
 ##            jxn_array_rich[count,samp_ind]= [0,[],[], []]
-                jxn_array[count,s]+=jxn_CN[i]
-                jxn_array_rich[count, s].add_jxn(jxn_CN[i], jxn_data[i,0], jxn_data[i,1], str(jxn_ids[i]))
+                jxn_array[index,s]+=jxn_CN[i]
+                jxn_array_rich[index, s].add_jxn(jxn_CN[i], jxn_data[i,0], jxn_data[i,1], str(jxn_ids[i]))
 
-        count+=1
+
     return jxn_array_rich, jxn_array, cluster_labels
 
 def CorrectErrors( data,data_locations, cluster_assignments, cluster_labels, threshold=100,cutoff=.01, FDR=.01):
+
+
     p_array=numpy.ndarray((len(data), len(data)))
     p_array.fill(1.)
     p_val_list=[]
     locations=[]
     loc_N=[]
+    #Build a matrix storing the Fisher exact test P-value for all clusters whose
+    #means are within the distanc thresholdof each other and storing 1 otherwise
+    cluster_map={}
     for i in range(len(data)):
         #Compute the average location of junctions in the cluster
         indices=cluster_assignments==cluster_labels[i]
+        cluster_map[cluster_labels[i]]=i
         pulled_data=data_locations[indices, :]
 
         if len(pulled_data)>1:
@@ -749,6 +823,7 @@ def CorrectErrors( data,data_locations, cluster_assignments, cluster_labels, thr
     #Now construct the dendrogram again, but terminate once the p-value exceeds the
     #greatest p-value for which the null hypothesis should be rejected under
     #multiple test correction
+##    cluster_map={}
     while terminate==False:
         #When we join two clusters, we add the second to the first, and set
         #the index flag of the second to false
@@ -764,12 +839,12 @@ def CorrectErrors( data,data_locations, cluster_assignments, cluster_labels, thr
         #Merge the clusters
         for s in range(samples):
                 data[i,s].join_jxns( data[j,s])
-                data[j,s]=[]
+                data[j,s]=ClusterInformation()
         #Update the cluster labels
         j_cluster_indices=cluster_assignments==cluster_labels[j]
         cluster_assignments[j_cluster_indices]=cluster_labels[i]
         cluster_labels[j]=cluster_labels[i]
-
+        cluster_map[cluster_labels[i]]=i
         #Update locations
         locations[i]=(locations[i]*loc_N[i]+locations[j]*loc_N[j])/(loc_N[i]+loc_N[j])
 
@@ -807,7 +882,7 @@ def CorrectErrors( data,data_locations, cluster_assignments, cluster_labels, thr
         count+=1
     print "Joined {0} cluster.".format(count)
     cluster_labels=list(set(list(cluster_assignments)))
-    return data, cluster_assignments, numpy.array( cluster_labels)
+    return data, cluster_assignments, numpy.array( cluster_labels), cluster_map
 
 
 def FisherExact(vec1, vec2):
@@ -831,7 +906,11 @@ def FisherExact(vec1, vec2):
 #
 #------------------------------------------------------------------------------#
 
-def CMeans(data, errors,pdf=scipy.stats.norm, components=10, iterations=10):
+
+def PlotClusterPaths(cluster_output):
+    y=cluster_output[-5]
+
+def CMeans(data, errors,pdf=scipy.stats.norm, components=10, iterations=10, mahalanobis_cutoff=1.):
     total_start=time.clock()
     time_dict={'Init':0,'Updates':0,'Total':0., 'Prune':0. }
 
@@ -839,11 +918,11 @@ def CMeans(data, errors,pdf=scipy.stats.norm, components=10, iterations=10):
     weight=numpy.array([1./components]*components)
 
     start=time.clock()
-    means=InitializeModel(100, data,errors,1)
+    means=InitializeModel(100, data,errors,mahalanobis_cutoff)
     time_dict['Init']+=time.clock()-start
     print len(means)
 
-    components=len(data)
+    components=len(means)
     weight=numpy.array([1./components]*components)
 
     weight/=sum(weight)
@@ -896,16 +975,17 @@ def CMeans(data, errors,pdf=scipy.stats.norm, components=10, iterations=10):
             lab_list.append(label_change)
 
         old_labels=labels
+        nan_ind=None
         if numpy.isnan(weight_array.sum())==True:
-
-            print i
+            nan_ind=numpy.isnan(weight_array.sum(0))
+            print "After {0} iterations, model unable to converge".format(i)
             weight_array=CalcBivariateNormal(data, numpy.array( mean), errors )
             weight_array=weight_array*numpy.array(wt)[:,None]
 
             weight_array/=weight_array.sum(0)
             labels=numpy.argmax( weight_array,0)
-            print jabber
-            return theta_old,labels, lk_list, weight_array, mean, numpy.array(weight_tracker), numpy.array( x_list),numpy.array( y_list),dif_list, loss_list, lab_list #,numpy.array( weight_tracker), mean_tracker, it_tracker
+
+            return theta_old,labels, lk_list, weight_array, mean, numpy.array(weight_tracker), numpy.array( x_list),numpy.array( y_list),dif_list, loss_list, lab_list, False #,numpy.array( weight_tracker), mean_tracker, it_tracker
 
         #Prune the model to remove unnecessary clusters
         prune_start=time.clock()
@@ -919,6 +999,9 @@ def CMeans(data, errors,pdf=scipy.stats.norm, components=10, iterations=10):
             theta_old.pop(I)
 
         wt, mean=zip(*theta_old)
+        if nan_ind!=None:
+            #Add more components
+            pass
         wt=numpy.array(wt)
         mean=numpy.array(mean)
 
@@ -958,16 +1041,17 @@ def CMeans(data, errors,pdf=scipy.stats.norm, components=10, iterations=10):
     labels=numpy.argmax( weight_array,0)
     time_dict['Total']+=time.clock()-total_start
     print time_dict
-    return theta_old,labels, lk_list, weight_array, mean, numpy.array(weight_tracker), numpy.array( x_list),numpy.array( y_list),dif_list, loss_list, lab_list #,numpy.array( weight_tracker), mean_tracker, it_tracker
+    return theta_old,labels, lk_list, weight_array, mean, numpy.array(weight_tracker), numpy.array( x_list),numpy.array( y_list),dif_list, loss_list, lab_list, True #,numpy.array( weight_tracker), mean_tracker, it_tracker
 
-def InitializeModel(components,data, errors, buffer_size=1 ):
+def InitializeModel(components,data, errors, buffer_size=1, seed=1 ):
     """Construct an initial model by centering components on randomly chosen
     data points, but with the additional requirement that no two components be within
     a set distance of each other. Place components until no eligible data points remain."""
     init_theta=[]
     dataLength=data.shape[0]
 
-    random_seed=int(time.clock()*(10000))%(2**24)
+##    random_seed=int(time.clock()*(10000))%(2**24)
+    random_seed=4235917
     print "Random Seed: {0}".format(random_seed)
     numpy.random.seed(random_seed)
 
@@ -1052,22 +1136,26 @@ def MahalanobisDistance(point, data, prec):
         mahab.append(scipy.spatial.distance.mahalanobis(point, data[i], prec[1]))
     return numpy.array( mahab)
 
-def ClusterMetatables(indir, outdir, specification):
+def ClusterMetatables(indir, outdir, specification, cov_path=''):
 
     MakeDir(outdir)
-
-    spec_dict=ReadSpecificationFile(specification)
-    metatable_dir=outdir+'/metatables'
-    print "Building metatables."
-    BuildMetaTable(indir,'outCN',metatable_dir)
-    metatables=LoadMetaTables(metatable_dir, spec_dict['CV'])
-    print ("Calling TE insertions in the reference chromosomes")
     insertion_file='{0}/TE_insertions.tsv'.format(outdir)
-    insertions=FindInsertionsFromJunctions(metatables, spec_dict['Masked'])
-    WriteInsertionTable(insertions, insertion_file)
-##    BuildErrorDict(insertion_file, spec_dict['Masked'], spec_dict['Cons']  )
+    metatable_dir=outdir+'/metatables'
     cluster_dir=outdir+'/cluster_tables'
-    ClusterDirectory(metatable_dir, cluster_dir, insertion_file, spec_dict['Masked'], spec_dict['Cons'] )
+    spec_dict=ReadSpecificationFile(specification)
+    if cov_path=='':
+
+
+        print "Building metatables."
+        BuildMetaTable(indir,'outCN',metatable_dir)
+        metatables=LoadMetaTables(metatable_dir, spec_dict['CV'])
+        print ("Calling TE insertions in the reference chromosomes")
+
+        insertions=FindInsertionsFromJunctions(metatables, spec_dict['Masked'])
+        WriteInsertionTable(insertions, insertion_file)
+##    BuildErrorDict(insertion_file, spec_dict['Masked'], spec_dict['Cons']  )
+
+    ClusterDirectory(metatable_dir, cluster_dir, insertion_file, spec_dict['Masked'], spec_dict['Cons'], cov_path )
 
 
 def main(argv):
@@ -1086,7 +1174,11 @@ def main(argv):
     indir=param['-i']
     outdir=param['-o']
     spec_file=param['-spec']
-    ClusterMetatables(indir, outdir, spec_file)
+    if param.has_key('-cov')==True:
+        cov_path=param['-cov']
+    else:
+        cov_path=''
+    ClusterMetatables(indir, outdir, spec_file, cov_path)
 
     pass
 
