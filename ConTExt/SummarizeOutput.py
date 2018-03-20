@@ -8,12 +8,28 @@
 # Copyright:   (c) I am 2018
 # Licence:     <your licence>
 #-------------------------------------------------------------------------------
+
+# General Feature:
+# Want to allow the user to input a samples.ignore file
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+
 import csv
 import numpy
+import numpy as np
 import os
 import scipy
 import scipy.signal
 import sys
+import pickle
 try:
     import tools.CoverageModeller as CoverageModeller
     from tools.General_Tools import *
@@ -72,6 +88,94 @@ def mergeDicts(dict_1, dict_2):
     for key in dict_2.keys():
         new_dict[key]=dict_2[key]
     return new_dict
+
+def ExpectedReadDepth(hist_table):
+    exp_cvg=[]
+    for i in range(hist_table.shape[0]):
+        exp_cvg.append(WeightedAverage(hist_table[i,:],numpy.arange(len(hist_table[i,:]))))
+    return numpy.array(exp_cvg)
+
+def EstimateRepeatAbundance(infile, outfile, consFile, kdefile, lenFile, insertFile):
+##    m,k,p=ReadDistributions(lenFile)
+##    read_len=2*WeightedAverage(m, range(len(m)))
+##    m,k,p=ReadDistributions(insertFile)
+    kernel=CoverageModeller.ConstructKernel(insertFile, lenFile)
+##    ins_len=1*WeightedAverage(k,range(len(k)))
+##    read_length=read_len+ins_len
+    cvg=numpy.load(kdefile)
+    kde_root='_'.join(infile.split('_')[:-1]) +"_cvg_kde"
+    if os.path.exists(kde_root+'_auto.npy')==False:
+        kde, kde_x=CoverageModeller.SmoothCvgByGC(cvg)
+##        kde_root=inDir+"_cvg_kde"
+        numpy.save(kde_root+'_auto.npy', kde)
+    else:
+        kde=numpy.load(kde_root+'_auto.npy')
+##    numpy.save(kde_root+'_x.npy', kde_x)
+    kde=numpy.array(kde)
+##    exp_cvg=ExpCvg( kde)
+
+    consSeq=GetSeq(consFile)
+##    cumul_dist=numpy.cumsum(k)
+
+
+    inhandle=open(infile, 'r')
+    intable=csv.reader(inhandle, delimiter='\t')
+    outhandle=open(outfile, 'w')
+    countDict={}
+    cons_dict={}
+##    refNames=['X', '2L','3L', '2R', '3R']
+    row=intable.next()
+    exp_cvg=ExpectedReadDepth(kde)
+    abundance_dictionary={}
+    for sequence in consSeq.keys():
+        abundance_dictionary[sequence]=0.
+    for row in intable:
+
+        line=cluster(row)
+        if line.feature!='Consensus': continue
+        if consSeq.has_key(line.Seq1)==False: continue
+        cons_dict[line.Seq1]=numpy.array([0.]*len(consSeq[line.Seq1]))
+        cons_dict[line.Seq1].fill(0.)
+        for i in range( len(line.x_list)):
+            l,r=line.y_list[i], line.x_list[i]
+            cons_dict[line.Seq1][l:r-1]+=1.
+##        if key=='':continue
+        seq_array=numpy.fromstring ( consSeq[line.Seq1].lower(), '|S1')
+        gc_array=(seq_array=='g')+(seq_array=='c')
+    ##        mean_gc=numpy.mean(gc_array)
+        if len(cons_dict[line.Seq1])>max(600, len(kernel)):
+
+            exp_GC=numpy.convolve(gc_array, kernel, 'same')
+            rounded_gc=numpy.asarray(100*exp_GC, int)
+            rounded_gc[rounded_gc>100]=100
+
+            expected_coverage=exp_cvg[rounded_gc]
+            estimated_CN=cons_dict[line.Seq1][300:-300]/expected_coverage[300:-300]
+
+            estimated_abundance=estimated_CN.sum()/(len(estimated_CN)/float(len(cons_dict[line.Seq1])))
+            cons_dict[line.Seq1]=(cons_dict[line.Seq1], estimated_CN, expected_coverage)
+            abundance_dictionary[line.Seq1]=estimated_abundance
+    pickle.dump(cons_dict, outhandle)
+    outhandle.close()
+    return abundance_dictionary
+##
+##        if key=='':continue
+##        seq_array=numpy.fromstring ( consSeq[f].lower(), '|S1')
+##        gc_array=(seq_array=='g')+(seq_array=='c')
+##    ##        mean_gc=numpy.mean(gc_array)
+##        if len(cvg_array)>len(kernel):
+##
+##            exp_GC=numpy.convolve(gc_array, kernel, 'same')
+##            rounded_gc=numpy.asarray(100*exp_GC, int)
+##            exp_cvg=numpy.array( ExpCvg(kde))
+##            good_indices=(exp_GC<100)
+##            print len( cvg_array),len( good_indices),len( rounded_gc)
+##            CN_array=cvg_array[good_indices]/exp_cvg[rounded_gc[good_indices]]
+##
+##
+##        outhandle.write('{0}\t{1}\t{2}\n'.format(key, numpy.mean (gc_array) , numpy.nansum( CN_array)))
+##    else: outhandle.write('{0}\t{1}\t{2}\n'.format(key, numpy.mean(gc_array) , numpy.nan))
+##    outhandle.flush()
 
 def EstimateJunctionCopyNumber(infile,outfile, kdeFile, lenFile,seqDict, kdefile ):
 
@@ -238,13 +342,362 @@ def ComputeApproximatePosterior(x, conv,threshold=100, bias=1):
 def NormalPDF(x,mu, sigma):
     return numpy.exp(-.5* (x-mu)**2/(sigma)**2) /(sigma * (2*numpy.math.pi )**.5)
 
+def SplitConTEXtOutput(infile, outDir):
+    #Create the output directory if it doesn't already exist
+    MakeDir(outDir)
+    ID_Header=['Subject', 'Target', 'Quad X', 'Quad Y', 'Feature Type']
+    Jxn_Header=['Jxn X', 'Jxn X (range)','Jxn Y', 'Jxn X (range)']
+    Position_Header=["Read Count","Reads 3' X", "Reads 3' Y"]
+    #Open the input file and read as a tab-delimited table
+    inhandle=open(infile, 'r')
+    table=csv.reader(inhandle, delimiter='\t')
+
+    #Create a dictionary that will hold open output files
+    #all files will be opened for appending.
+    #Becauswe python puts a limit on how many files will be opened at once,
+    #we will have three objects:
+
+    #PathDictionary -- Stores the paths to all output files
+    #HandleDictionary -- Stores the handles for open output files
+    #StackList -- Stores the keys to open output files in the order that they
+                    #were opened, with the most recent at the end of the list.
+    PathDictionary={}
+    HandleDictionary={}
+    WriterDictionary={}
+    StackList=[]
+    fileHeader=True
+
+    for row in table:
+        if fileHeader==True:
+            fileHeader=False
+            continue
+        line=cluster(row)
+        Entry1=line.Seq1
+        Entry2=line.Seq2
+
+        #Only true if this is the first time an entry is encountered
+        #If so, write a header row.
+        Header1=False
+        Header2=False
+
+        #Create a new output path if the repeat family doesn't have one
+
+        if PathDictionary.has_key(Entry1)==False:
+            newPath=outDir + '/' + Entry1 + '.tsv'
+            PathDictionary[Entry1]=newPath
+            Header1=True
+
+        if HandleDictionary.has_key(Entry1)==False:
+            HandleDictionary[Entry1]=open(PathDictionary[Entry1], 'a')
+            WriterDictionary[Entry1]=csv.writer(HandleDictionary[Entry1], delimiter='\t')
+            StackList.append(Entry1)
+
+            if len(StackList)>100:
+                #If more than 100 output files are open, close the oldest and remove it from the stacks of open files
+                HandleDictionary[StackList[0]].close()
+                del HandleDictionary[StackList[0]]
+                del WriterDictionary[StackList[0]]
+                del StackList[0]
+        if Header1==True:
+            WriterDictionary[Entry1].writerow(ID_Header+Jxn_Header+Position_Header)
+        WriterDictionary[Entry1].writerow(line.row())
+
+        if Entry1!=Entry2:
+
+            if PathDictionary.has_key(Entry2)==False:
+                newPath=outDir + '/' + Entry2 + '.tsv'
+                PathDictionary[Entry2]=newPath
+                Header=True
+
+            if HandleDictionary.has_key(Entry2)==False:
+                HandleDictionary[Entry2]=open(PathDictionary[Entry2], 'ab')
+                WriterDictionary[Entry2]=csv.writer(HandleDictionary[Entry2], delimiter='\t')
+                StackList.append(Entry2)
+
+                if len(StackList)>100:
+                    HandleDictionary[StackList[0]].close()
+                    del HandleDictionary[StackList[0]]
+                    del WriterDictionary[StackList[0]]
+                    del StackList[0]
+            if Header2==True:
+                WriterDictionary[Entry2].writerow(ID_Header+Jxn_Header+Position_Header)
+            WriterDictionary[Entry2].writerow(line.inverse_row())
+
+
+    #Close all output files
+    for entry in StackList:
+        HandleDictionary[entry].close()
+
+    inhandle.close()
+    return StackList
+
+#------------------------------------------------------------------------------#
+#
+#Functions for building SNP pileups
+#
+#------------------------------------------------------------------------------#
+
+
+def PileupConsensusSequences(indir,  outdir,in_tail, seq_file):
+    MakeDir(outdir)
+    files=os.listdir(indir)
+    image_directory={}
+    rpt_dict=GetSeq(seq_file)
+    snp_dict={}
+    #Fill the dictionary firs
+    for rpt in sorted( rpt_dict.keys()):
+        length=len(rpt_dict)+1
+        snp_dict[rpt]={}
+        for f in sorted( files ):
+
+            filename=f.split('/')[-1]
+            root=filename.split('.')[0]
+            tail=root.split('_')[-1]
+            name='_'.join(root.split('_')[:-1])
+            if tail!=in_tail: continue
+            sample,rep,blank= root.split('_')
+
+            snp_dict[rpt][sample]=numpy.ndarray((5,length))
+            snp_dict[rpt][sample].fill(0.)
+    for f in sorted( files ):
+        #Only process files with the appropriate tag
+        filename=f.split('/')[-1]
+        root=filename.split('.')[0]
+        tail=root.split('_')[-1]
+        name='_'.join(root.split('_')[:-1])
+        if tail!=in_tail: continue
+        print name
+        sample,rep,blank= root.split('_')
+        if rep=='2': continue
+##        continue
+
+        inhandle=open(indir+'/'+f, 'r')
+        intable=csv.reader(inhandle, delimiter= '\t')
+        intable.next()
+
+        for row in intable:
+            try:
+                line=cluster(row)
+            except:
+                print row
+                print jabber
+            if line.feature=='Consensus':
+##                print line.ID
+                try:
+                    length=len(rpt_dict[line.Seq1])+1
+                except:
+                    #Not in the repeat index:
+                    continue
+
+                snp_dict[line.Seq1][sample]=(PileUp(line, length=length))
+##                break
+        inhandle.close()
+##        print len(snp_list)
+    #Write the output files
+    for repeat in sorted( snp_dict.keys()):
+        repeat_array=[]
+        for sample in sorted(snp_dict[repeat].keys()):
+            repeat_array.append(snp_dict[repeat][sample])
+        outfile='{0}/{1}_snps.npy'.format(outdir, repeat)
+        numpy.save(outfile, numpy.array(snp_dict[key]))
+
+def PileUp(clust, Seq='', length=8119):
+    SNP_array=numpy.ndarray((5,length))
+    SNP_array.fill(0.)
+    quad_1=clust.Quad1
+    quad_2=clust.Quad2
+    cvg=numpy.array([0.]*length)
+    count=0.
+    cig_list,md_list, pos_list=[],[],[]
+    for i in range(clust.count):
+        x_3=clust.x_list[i]
+        y_3=clust.y_list[i]
+        try:
+            cigX=clust.CigarX[i]
+            cigY=clust.CigarY[i]
+        except:
+            print clust.count
+            print len(clust.CigarX)
+            print jabber
+        qdX=clust.QD_X[i]
+        qdY=clust.QD_Y[i]
+        #Maybe need to reverse?
+
+        parsed_cigX=ParseCIGAR(cigX)
+        len_x=parsed_cigX['D']+parsed_cigX['M']
+        cig_array_X=ExpandCIGAR(cigX)
+        matched_indices_X=numpy.where(cig_array_X[cig_array_X!='I'] =='M')[0]
+        md_array_X=ExpandMD(clust.MD_X[i])
+
+        parsed_cigY=ParseCIGAR(cigY)
+        len_y=parsed_cigY['D']+parsed_cigY['M']
+        cig_array_Y=ExpandCIGAR(cigY)
+        matched_indices_Y=numpy.where(cig_array_Y[cig_array_Y!='I'] =='M')[0]
+        md_array_Y=ExpandMD(clust.MD_Y[i])
+
+
+        if md_array_X=='Failed' or md_array_Y=='Failed': continue
+        if quad_1=='+':
+            x_5=x_3-len_x
+        else:
+            x_5=x_3+len_x
+        if quad_2=='+':
+            y_5=y_3-len_y
+        else:
+            y_5=y_3+len_y
+        x_l=min(x_3, x_5)
+        x_r=max(x_3, x_5)
+        y_l=min(y_3, y_5)
+        y_r=max(y_3, y_5)
+        cvg[x_l:x_r]+=1.
+        cvg[y_l: y_r]+=1.
+        try:
+            if qdY=='':
+
+                SNP_array[:,y_l:y_r][md_array_Y[5:-5], matched_indices_Y[5:-5]]+=1
+
+            else:
+    ##            try:
+                mask_ind=set(numpy.asarray(qdY.split(','),int))
+                con_ind=set(range(0,len(matched_indices_Y)))
+                if max(mask_ind)>max(con_ind): print max(mask_ind),max(con_ind)
+                ind= numpy.array(sorted( list( con_ind-mask_ind)))
+                if len(ind)>10:
+##                    SNP_array[:,x_l:x_r][md_array_X[ind[5:-5]], matched_indices_X[ind[5:-5]]]+=1
+                    SNP_array[:,y_l:y_r][md_array_Y[ind[5:-5]], matched_indices_Y[ind[5:-5]]]+=1
+
+        except:
+
+            z=1
+
+
+        if qdX=='':
+
+            try:
+                SNP_array[:,x_l:x_r][md_array_X[5:-5], matched_indices_X[5:-5]]+=1
+            except:
+                print md_array_X.shape
+
+                print matched_indices_X.shape
+                print SNP_array[:,x_l:x_r+1].shape
+                print clust.MD_X[i]
+                print cigX
+                print '=--------------------------------------------'
+
+        else:
+##                try:
+            mask_ind=set(numpy.asarray(qdX.split(','),int))
+
+            con_ind=set(range(0,len(matched_indices_X)))
+            ind= numpy.array(sorted( list( con_ind-mask_ind)))
+            if max(mask_ind)>max(con_ind): print max(mask_ind),max(con_ind)
+            try:
+                if len(ind)>10:
+                    SNP_array[:,x_l:x_r][md_array_X[ind[5:-5]], matched_indices_X[ind[5:-5]]]+=1
+            except:
+                print x_l, x_r
+                print clust.MD_X[i]
+                print mask_ind
+                print md_array_X.shape
+                print matched_indices_X.shape
+                print ind.shape
+
+    print count
+    print SNP_array.sum()
+    return SNP_array
+
+def ParseCIGAR(CIGAR):
+    """Reads a sam CIGAR string to count deletions and insertions and matches"""
+
+    parts={'M':0, 'I':0,'D':0}
+    cigar=np.array(list(CIGAR))
+
+    m=np.where(cigar=='M')
+    i=np.where(cigar=='I')
+    d=np.where(cigar=='D')
+    M=['M']*len(m[0])
+    I=['I']*len(i[0])
+    D=['D']*len(d[0])
+    indices=np.concatenate((m,i,d),-1)
+    values=np.concatenate((M,I,D),-1)
+    pairs=[]
+    for w in range(len(indices[0])):
+        pairs.append((indices[0][w], values[w]))
+    pairs=sorted(pairs, key=lambda x: x[0])
+    last=0
+    for p in pairs:
+        val=int(CIGAR[last:p[0]])
+        parts[p[1]]+=val
+        last=1+p[0]
+    return(parts)
+
+def ExpandMD(MD_string):
+    """Consensus: 0
+    A: 1
+    T: 2
+    C: 3
+    G: 4 """
+    if MD_string.count('N')!=0:  return 'Failed'
+    nt={'A':1, 'T':2, 'C':3,'G':4}
+    hold='0'
+    null=False
+    expanded_md=[]
+    for char in MD_string:
+##        print null
+        if null==True:
+            if nt.has_key(char)==False:
+                null=False
+            else: continue
+##            continue
+        if char=='^':
+            null=True
+            expanded_md+=[0]*int(hold)
+            hold='0'
+            continue
+        if nt.has_key(char)==False:
+            hold+=char
+        else:
+##            print hold
+
+            expanded_md+=[0]*int(hold)
+            expanded_md+=[nt[char]]
+            hold='0'
+    expanded_md+=[0]*int(hold)
+    return numpy.array( expanded_md )
+def ExpandCIGAR(CIGAR):
+    """Reads a sam CIGAR string to count deletions and insertions and matches"""
+
+    parts={'M':0, 'I':0,'D':0}
+    cigar=np.array(list(CIGAR))
+
+    m=np.where(cigar=='M')[0]
+    i=np.where(cigar=='I')[0]
+    d=np.where(cigar=='D')[0]
+##    M=['M']*len(m[0])
+##    I=['I']*len(i[0])
+##    D=['D']*len(d[0])
+    indices=sorted(list( np.concatenate((m,i,d),-1)))
+    indices=[-1]+indices
+##    print indices
+    CIGAR_list=[]
+    for i in range(len(indices)-1):
+        chunk= CIGAR[indices[ i]+1 :indices[ i+1]+1]
+        count, val=int(chunk[:-1]),chunk[-1]
+        CIGAR_list+=[val]*count
+    return numpy.array( CIGAR_list)
+
+
+
 def main(argv):
     param={}
     for i in range(1, len(argv), 2):
         param[argv[i]]= argv[i+1]
     print param
     if param=={}: return()
-
+    if param.has_key('-split'):
+        outdir='.'.join(param['-split'].split('.')[:-1])+'_split'
+        SplitConTEXtOutput(param['-split'], outdir)
+        return()
 
     spec_dict=ReadSpecificationFile(param['-spec'])
     reffile=spec_dict['Ref']
@@ -254,6 +707,11 @@ def main(argv):
     seqDict=mergeDicts(refSeq, consSeq)
     file_list=os.listdir(param['-i'])
     count=0
+
+    if param.has_key('-snp')==True:
+        PileupConsensusSequences(param['-i'], param['-o'], param['-tail'], consfile)
+        return()
+    sample_dict={}
     for file_path in file_list:
 
         count+=1
@@ -268,6 +726,7 @@ def main(argv):
 ##            print directory
         directory=param['-i']+"/"+ '_'.join(file_root.split('_')[:-1])
         infile=directory+'_out.tsv'
+        sample='_'.join( infile.split('/')[-1].split('_')[:-1])
         outfile=directory+'__outCN.tsv'
 ##            directory='_'.join(file_root.split('_')[:2])
         dist_file=directory+'_kde.tsv'
@@ -275,8 +734,26 @@ def main(argv):
 ##            kde_file=directory+'_cvg_kde_auto.npy'
 ##            kde_file_X=directory+'_cvg_kde_x.npy'
         kde_file=directory+'_cvg_hist.npy'
-        EstimateJunctionCopyNumber(infile, outfile, dist_file, len_file, seqDict, kde_file)
+        if param.has_key('-count')==True:
 
+            outfile=directory+'__pickle.dict'
+            sample_dict[sample]= EstimateRepeatAbundance(infile, outfile, consfile, kde_file, len_file, dist_file)
+        else:
+            outfile=directory+'__outCN.tsv'
+            EstimateJunctionCopyNumber(infile, outfile, dist_file, len_file, seqDict, kde_file)
+    if sample_dict!={}:
+        outhandle=open(param['-i']+'/count_table.tsv', 'w')
+        outtable=csv.writer(outhandle, delimiter='\t')
+        ref_sample=sample_dict.keys()[0]
+        header=['Repeat Family']+sorted( sample_dict.keys())
+        outtable.writerow(header)
+        for repeat in sorted( sample_dict[ref_sample].keys()):
+            repeat_row=[repeat]
+            for sample in sorted( sample_dict.keys()):
+                repeat_row.append(sample_dict[sample][repeat])
+            outtable.writerow(repeat_row)
+
+        outhandle.close()
 
 if __name__ == '__main__':
     main(sys.argv)

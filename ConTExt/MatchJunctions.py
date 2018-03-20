@@ -528,7 +528,8 @@ def ClusterDirectory(indir,outdir,insertion_file, ref_file, rep_file, cov_path='
     if cov_path=='':
         err_dict, data_dict=BuildErrorDict(insertion_file, ref_file, rep_file)
         cov_dict=EstimateCovariances(data_dict)
-        cov_file='{0}/cov_dict.dict'.format(outdir)
+        cov_output_dir='/'.join(outdir.split('/')[:-1])
+        cov_file='{0}/cov_dict.dict'.format(cov_output_dir)
         cov_handle=open(cov_file, 'wb')
         pickle.dump(cov_dict, cov_handle)
         cov_handle.close()
@@ -905,10 +906,6 @@ def FisherExact(vec1, vec2):
 #C-Means algorithm
 #
 #------------------------------------------------------------------------------#
-
-
-def PlotClusterPaths(cluster_output):
-    y=cluster_output[-5]
 
 def CMeans(data, errors,pdf=scipy.stats.norm, components=10, iterations=10, mahalanobis_cutoff=1.):
     total_start=time.clock()
