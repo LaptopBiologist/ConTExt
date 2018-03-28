@@ -6,7 +6,7 @@ Repeat-derived NGS reads are often ignored in sequencing analyses because an ess
 
 Most of the major scripts that actually organize the data are designed to be run from command-prompt and all of the necessary steps are called automatically. The individual functions are not intended to be called directly by the user. Extensive documentation for using functions is restricted to those intended to be called manually.  
 
-I automate as much of the pipeline as is possible, but cookie cutter solutions do always not exist for every step of analysis. Where user decision are necessary, the manual provided in ./docs provides guidance. 
+I automate as much of the pipeline as is possible, but cookie cutter solutions do always not exist for every step of analysis. Where user decision are necessary, the manual located in ./docs provides guidance. 
 
 ## Dependencies:
 Python 2.7, the code is not currently compatible with Python 3. In future, I may try to port it to Python 3, but it is not currently a priority of mine. The package was developed using the following versions of these Python libraries:
