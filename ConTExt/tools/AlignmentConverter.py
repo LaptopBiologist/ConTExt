@@ -15,6 +15,9 @@
 
 #THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #-------------------------------------------------------------------------------
+import psutil
+
+
 import csv
 import os
 import numpy
@@ -29,6 +32,15 @@ from Bio import SeqIO
 from Bio import Seq
 
 from itertools import chain
+
+from multiprocessing import Pool
+from functools import partial
+
+##print  psutil.cpu_count()
+##p= psutil.Process()
+##print p.cpu_affinity()  #
+##
+##os.system("taskset -p 0xff %d" % os.getpid())
 
 class SamLine():
     def __init__(self, row):
@@ -621,13 +633,18 @@ def DebugConvertSAMFromInsertionsToConsensus(inSam, conversionFile):
     return convertCount, total, convertCount/total
 
 
-def ConvertSAMFromInsertionsToConsensus(inSam, conversionFile, consensus_file='', replace_input=True):
+def ConvertSAMFromInsertionsToConsensus(inSam, conversionFile, consensus_file='', replace_input=True, threads=1, buffer_size=1000000):
     #Read the conversion table
     #   consDict is used to identify reads that already align to the consensus
     #   insDict is used to identify which reads are aligned to insertions
     #   and stores the information necessary to convert insertion postions to consensus positions
+    start=time.clock()
     consSequences=GetSeq(consensus_file)
     consDict, insDict=ReadConversionTable(conversionFile)
+
+    if threads>1:
+        pool=Pool(processes= threads)
+        ConvertSamRowPartial=partial(ConvertSamRow,consSequences=consSequences, consDict=consDict, insDict=insDict)
     #Open the input and output files as Tab-delimited files
 
     tempRoot='.'.join( inSam.split('.')[:-1])
@@ -641,8 +658,11 @@ def ConvertSAMFromInsertionsToConsensus(inSam, conversionFile, consensus_file=''
     total=0.
     timer_conv=0.
     timer_md=0.
+    row_count=0
+    loaded_rows=[]
     for row in inTable:
-        conv_start=time.clock()
+
+
         #Handle the header rows
         if row[0][0]=='@':
             if row[0]=='@SQ':
@@ -653,95 +673,135 @@ def ConvertSAMFromInsertionsToConsensus(inSam, conversionFile, consensus_file=''
             else:
                 tempTable.writerow(row)
                 continue
-
         #Handle the non-header rows
-        line=SamLine(row) #Organize the information in this row using the SamLine class
-        if consDict.has_key( line.contig)==True:    #Read aligns to consensus, don't change anything about the sam line
-            tempTable.writerow(row)
-        elif insDict.has_key(line.contig)==True:    #Read aligns to insertion, convert its position to consensus
-            total+=1
-##            newPos, newCigar= CombineAlignments(line.pos, insDict[line.contig].insStart\
-##            ,insDict[line.contig].insEnd, line.cigar, insDict[line.contig].YIntercepts)
-            newPos,newCigar=MapToConsensus(line.pos, insDict[line.contig].insStart, line.cigar, insDict[line.contig].YIntercepts, insDict[line.contig].slope, insDict[line.contig], len(line.seq))
+        row_count+=1
+        #Not running in parellel
+        if threads==1:
+            new_row, total_inc, conv_inc= ConvertSamRow(row,consSequences, consDict, insDict)
+            tempTable.writerow(new_row)
+            total+=total_inc
+            convertCount+=conv_inc
+        #Read in
+        else:
+                #Load the row into memory
+            loaded_rows.append(row)
+            if row_count%buffer_size==0:
+##                loaded_rows.append(row)                           #Convert the loaded row and write them
+                print len(loaded_rows)
 
-            #Calculate how long the alignment to the insertion was
-            originalCigar=ParseCIGAR(line.cigar)
-            originalLength=originalCigar['M']+originalCigar['D']
-
-            #Calculate how long the new alignment to the consensus is
-            newCigarParts=ParseCIGAR(newCigar)
-            newLength=newCigarParts['M']+newCigarParts['D']
-            if newCigar=='':   #Read is unmapped
-                line.pos=0
-                line.cigar='*'
-                line.contig='*'
-                line.flag=4
-                tempTable.writerow(line.row())
-                continue
-            if newCigarParts['M']+newCigarParts['I']!=len( line.seq):
-                print newCigar
-                print jabber
-            slope=insDict[line.contig].slope
-            if insDict[line.contig].slope==-1: #The read is now on the opposte strand, so note that and reverse the CIGAR string
-                line.seq=str(Seq.Seq(line.seq).reverse_complement())
-                line.qual=line.qual[::-1]
-                line.flag=16-line.flag
-                newCigar=ReverseCIGAR(newCigar)
-
-            if numpy.isnan( newPos)==False and .5*originalLength<=newLength<=1.5*originalLength:
-                #Provided the read contains positions represented in the consensus,
-                #and its alignment to the consensus is no less that 50% of the original
-                #aligned length and no greater than 150% assign it to the consensus
-                #convert the sam line to the consensus alignment
-                convertCount+=1
-                line.pos=int(newPos)
-                line.cigar=newCigar
-                line.contig=insDict[line.contig].consName
-            else:
-                #Otherwise, convert it to an unmapped read
-                line.pos=0
-                line.cigar='*'
-                line.contig='*'
-                line.flag=4
-            timer_conv+=time.clock()-conv_start
-            #This is a place where the MD string can be updated
-            #We have: The new cigar, the new position, the read sequence and the read quality string
-            #The only thing we are missing is the consensus sequence, but that is easily remedied.
-
-            #The functions that go here will need to take as input SamLine objects
-            #We need to obtain two strings, one for the read and one for the consensus,
-            #containing the nucleotides at matched positions. We need also to account for strandedness
-            #That is, the consensus sequence needs to come from the proper strand.
-            md_start=time.clock()
-            QD_string=''
-            if line.contig!="*":
-                MD_string, QD_string=UpdateMDString(line, consSequences,slope)
-
-                #Find the MD string in the optional flags
-                optional_headers=[flag.split(':')[0] for flag in line.optional]
-                MD_index=optional_headers.index('MD')
-
-                #Replace the original MD string with the updated one
-                line.optional[MD_index]=MD_string
-            timer_md+=time.clock()-md_start
-            #write the samline
-            tempTable.writerow(line.row() + [QD_string])
-##            print newPos, newCigar
-        else:   #Read is unmapped
-            line.pos=0
-            line.cigar='*'
-            line.contig='*'
-            line.flag=4
-            tempTable.writerow(line.row())
+##                conversion_output=parmap.starmap(ConvertSamRow, loaded_rows,consSequences, consDict, insDict)
+                conversion_output=pool.map(ConvertSamRowPartial, loaded_rows)
+                loaded_rows=[]
+                for new_row, total_inc, conv_inc in conversion_output:
+                    tempTable.writerow(new_row)
+                    total+=total_inc
+                    convertCount+=conv_inc
+    if threads>1 and row_count%buffer_size!=0:    #Load the row into memory
+    #Convert the loaded row and write them
+        conversion_output=pool.map(ConvertSamRowPartial, loaded_rows)
+        loaded_rows=[]
+        for new_row, total_inc, conv_inc in conversion_output:
+            tempTable.writerow(new_row)
+            total+=total_inc
+            convertCount+=conv_inc
+##        new_row, total_inc, conv_inc= ConvertSamRow(row,consSequences, consDict, insDict)
+##        tempTable.writerow(new_row)
+##        total+=total_inc
+##        convertCount+=conv_inc
     inHandle.close()
     tempHandle.close()
 
     if replace_input==True:
         os.remove(inSam)
         os.rename(tempFile, inSam)
-    print timer_conv, timer_md
+    print time.clock()-start
     return convertCount, total, convertCount/total
 
+
+def ConvertSamRow(row,consSequences, consDict, insDict):
+    """Takes in a row and returns a row reflecting the updated alignment
+    to a consensus sequence and the amount by which to increment the two counters."""
+    total_inc=0
+    converted_inc=0
+    line=SamLine(row) #Organize the information in this row using the SamLine class
+    if consDict.has_key( line.contig)==True:    #Read aligns to consensus, don't change anything about the sam line
+        return(row, total_inc, converted_inc)
+    elif insDict.has_key(line.contig)==True:    #Read aligns to insertion, convert its position to consensus
+        total_inc+=1
+##            newPos, newCigar= CombineAlignments(line.pos, insDict[line.contig].insStart\
+##            ,insDict[line.contig].insEnd, line.cigar, insDict[line.contig].YIntercepts)
+        newPos,newCigar=MapToConsensus(line.pos, insDict[line.contig].insStart, line.cigar, insDict[line.contig].YIntercepts, insDict[line.contig].slope, insDict[line.contig], len(line.seq))
+
+        #Calculate how long the alignment to the insertion was
+        originalCigar=ParseCIGAR(line.cigar)
+        originalLength=originalCigar['M']+originalCigar['D']
+
+        #Calculate how long the new alignment to the consensus is
+        newCigarParts=ParseCIGAR(newCigar)
+        newLength=newCigarParts['M']+newCigarParts['D']
+        if newCigar=='':   #Read is unmapped
+            line.pos=0
+            line.cigar='*'
+            line.contig='*'
+            line.flag=4
+            return line.row(), total_inc, converted_inc
+        if newCigarParts['M']+newCigarParts['I']!=len( line.seq):
+            #This would be an error
+            print newCigar
+            print jabber
+        slope=insDict[line.contig].slope
+        if insDict[line.contig].slope==-1: #The read is now on the opposte strand, so note that and reverse the CIGAR string
+            line.seq=str(Seq.Seq(line.seq).reverse_complement())
+            line.qual=line.qual[::-1]
+            line.flag=16-line.flag
+            newCigar=ReverseCIGAR(newCigar)
+
+        if numpy.isnan( newPos)==False and .5*originalLength<=newLength<=1.5*originalLength:
+            #Provided the read contains positions represented in the consensus,
+            #and its alignment to the consensus is no less that 50% of the original
+            #aligned length and no greater than 150% assign it to the consensus
+            #convert the sam line to the consensus alignment
+            converted_inc+=1
+            line.pos=int(newPos)
+            line.cigar=newCigar
+            line.contig=insDict[line.contig].consName
+        else:
+            #Otherwise, convert it to an unmapped read
+            line.pos=0
+            line.cigar='*'
+            line.contig='*'
+            line.flag=4
+
+        #This is a place where the MD string can be updated
+        #We have: The new cigar, the new position, the read sequence and the read quality string
+        #The only thing we are missing is the consensus sequence, but that is easily remedied.
+
+        #The functions that go here will need to take as input SamLine objects
+        #We need to obtain two strings, one for the read and one for the consensus,
+        #containing the nucleotides at matched positions. We need also to account for strandedness
+        #That is, the consensus sequence needs to come from the proper strand.
+
+        QD_string=''
+        if line.contig!="*":
+            MD_string, QD_string=UpdateMDString(line, consSequences,slope)
+
+            #Find the MD string in the optional flags
+            optional_headers=[flag.split(':')[0] for flag in line.optional]
+            MD_index=optional_headers.index('MD')
+
+            #Replace the original MD string with the updated one
+            line.optional[MD_index]=MD_string
+
+        #write the samline
+        new_row=line.row() + [QD_string]
+        return new_row, total_inc, converted_inc
+##            print newPos, newCigar
+    else:   #Read is unmapped
+        line.pos=0
+        line.cigar='*'
+        line.contig='*'
+        line.flag=4
+        return line.row(), total_inc, converted_inc
 
 def UpdateMDString(line, consDict,slope):
 
@@ -893,10 +953,10 @@ def ConvertInterceptToCigarEfficient(intercept):
     pos_array[insertion_index]='I'
 ##    del_pos+=pos_deletions[del_pos]
     #Now add deletions into the operation array
-    del_offset=0.
+    del_offset=0
 ##    print del_pos
     for del_index in del_pos:
-        del_size=abs( intercept[del_index])
+        del_size=int( abs( intercept[del_index]))
 
         del_array= numpy.array( ['D']* del_size)
         pos_array[del_index +del_offset:del_index+del_size+del_offset]=del_array
@@ -1177,7 +1237,12 @@ def main(argv):
         if param.has_key('-replace')==True:
            replace=bool( param['-replace'])
         else: replace=False
-        convertCount, total, percent=ConvertSAMFromInsertionsToConsensus(samFile, convFile, consFile, replace_input=replace)
+        if param.has_key('-p')==True:
+            threads=int(param['-p'])
+        else:
+            threads=1
+
+        convertCount, total, percent=ConvertSAMFromInsertionsToConsensus(samFile, convFile, consFile, replace_input=replace, threads=threads)
         print "Converted {0} out of {1} insertion alignments to consensus alignments ({2}%)".format(convertCount, total, percent*100.)
 
 ##    except:
