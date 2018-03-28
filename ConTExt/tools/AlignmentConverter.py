@@ -756,7 +756,7 @@ def UpdateMDString(line, consDict,slope):
     #Determine the interval
     align_begin=line.pos-1      #Python uses a zero-coordinate system, while SAM format uses 1-coordinate
     aligned_length=((CIGAR_array=='M')+(CIGAR_array=='D')).sum()
-    align_end=align_begin+aligned_length+1
+    align_end=align_begin+aligned_length
 
     cons_align=cons_seq[align_begin:align_end]
 ##    if slope!=1:
@@ -1062,7 +1062,7 @@ def SplitCigar(CIGAR):
     """Reads a sam CIGAR string to count deletions and insertions and matches"""
 
     parts={'M':0, 'I':0,'D':0}
-    cigar=numpy.array(list(CIGAR))
+    cigar=numpy.fromstring(CIGAR, '|S1')
 
     m=numpy.where(cigar=='M')
     i=numpy.where(cigar=='I')
@@ -1090,7 +1090,7 @@ def ExpandCIGAR(CIGAR):
     """Reads a sam CIGAR string to count deletions and insertions and matches"""
 
     parts={'M':0, 'I':0,'D':0}
-    cigar=np.array(list(CIGAR))
+    cigar=numpy.fromstring(CIGAR, '|S1')
 
     m=np.where(cigar=='M')[0]
     i=np.where(cigar=='I')[0]
@@ -1114,7 +1114,7 @@ def ParseCIGAR(CIGAR):
     """Reads a sam CIGAR string to count deletions and insertions and matches"""
 
     parts={'M':0, 'I':0,'D':0}
-    cigar=np.array(list(CIGAR))
+    cigar=numpy.fromstring(CIGAR, '|S1')
 
     m=np.where(cigar=='M')
     i=np.where(cigar=='I')
