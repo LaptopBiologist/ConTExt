@@ -11,6 +11,7 @@
 #-------------------------------------------------------------------------------
 
 import sys
+import ParseCigar
 import numpy
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -37,8 +38,15 @@ def ReplaceAmbiguousNucleotides(sequence):
     for ambiguous_nt in IUPAC_DICT:
         amb_ind=numpy.where(seq_array==ambiguous_nt)[0]
         replacement_nt=numpy.random.choice(IUPAC_DICT[ambiguous_nt], size=len(amb_ind), replace=True)
+##        print replacement_nt
         seq_array[amb_ind]=replacement_nt
-    seq_array
+    #Replace all remaining non ATGC nucleotides randomly:
+    ATGC=(seq_array=='A')+(seq_array=='T')+(seq_array=='C')+(seq_array=='G')
+
+    amb_ind=numpy.where(ATGC==0)[0]
+##    print amb_ind
+    replacement_nt=numpy.random.choice(IUPAC_DICT['N'], size=len(amb_ind), replace=True)
+    seq_array[amb_ind]=replacement_nt
     return ''.join(seq_array)
 
 def GetSeq(ref):
@@ -547,14 +555,17 @@ class HashedIndex():
         name_list=[]
         left_list=[]
         right_list=[]
+        offset=0
         position=0
+        offset=200
         for rec in lib:
             length=len(rec)
             left_list.append(position)
             right_list.append(position+length)
             name_list.append(rec.name)
-            SeqLen+=str(rec.seq).upper()
-            position+=length
+            new_seq=str(rec.seq).upper()+'N'*offset
+            SeqLen+=new_seq
+            position+=len(new_seq)
 
         handle.close()
         self.left=numpy.array(left_list)
@@ -563,9 +574,17 @@ class HashedIndex():
         return  Seq (SeqLen)
 
     def QueryReference(self,pos):
+        strand=numpy.sign(pos)
+        pos=abs(pos)
         hit_ind=(pos>=self.left)*(pos<self.right)
         name=self.name_list[hit_ind]
         hit_pos=pos-self.left[hit_ind]
+        if len(name)!=0:
+            name=name[0]
+            hit=hit_pos[0]
+        else:
+            name=''
+            hit_pos=-1
         return name, hit_pos
 
 
@@ -580,6 +599,7 @@ class HashedIndex():
             self.count+=1
 
             kmer=str(sequence[x:x+k])
+            if kmer.count('N')!=0: continue
             try:
                 self.kmer_location_dict[kmer].append(x)
             except:
@@ -613,9 +633,39 @@ class HashedIndex():
         print ("Spent {0} s on alignment building ({1})".format(self.search_query_time, self.search_query_time/self.read_count))
 
 
+def CleanKmerLocations(hi, cutoff=50):
+    for key in hi.kmer_location_dict.keys():
+        locations=hi.kmer_location_dict[key]
+        sorted_loc=sorted(locations)
+        diff=numpy.diff([min(locations)-1]+  hi.kmer_location_dict[key])
+        good_seeds=diff>cutoff
+##    return sorted_loc
+        hi.kmer_location_dict[key]=list(numpy.array(sorted_loc)[good_seeds])
+
+
+
+def AlignRead(read, subject, k):
+    alignments=[]
+    all_found=False
+    while all_found==False:
+        alignment=edlib.align(read, subject, 'HW', 'path', k=k)
+        locations=alignment['locations']
+        alignments.append(alignment)
+        if len(locations)>1:
+            l,r=locations[0]
+            subject=subject[:l]+'N'*(r-l)+subject[r:]
+        else:
+            all_found=True
+        if float(subject.count('N'))/len(subject)>.7:
+            all_found=True
+    return alignments
+
 def ScoreRead(read, qual, has_index,exp_seq, exp_pos, phred=33):
+    read=read.upper()
     start=time.clock()
     subject_sequences=GetPotentialTargetSequences(read, has_index)
+    if subject_sequences==[]: return 0
+
     seed_time=time.clock()-start
     quality_array=numpy.array([ord( q)-phred for q in qual])
     #Align the read to each target sequence and  save the alignment score
@@ -625,110 +675,216 @@ def ScoreRead(read, qual, has_index,exp_seq, exp_pos, phred=33):
     parse_time=0
     score_time=0
     start=time.clock()
-    alignments=[edlib.align(read, subject[2], 'HW', 'path', k=20) for subject in subject_sequences]
+    aligned_subjs=[]
+    alignments=[]
+
+    for subject in subject_sequences:
+
+        new_alignments=AlignRead(read, subject[2],k=20)
+        alignments+=new_alignments
+        aligned_subjs+=[subject]*len(new_alignments)
     distances=numpy.array( [a['editDistance'] for a in alignments])
-    if len(distances[distances>0])>3:
-        max_dist=sorted(distances[distances>0])[2]
-    else: max_dist=max(distances)
+##    print distances
+##    print alignments
+##    if len(distances[distances>0])>3:
+##        max_dist=sorted(distances[distances>0])[2]
+    max_dist=max(distances)
     align_time+=time.clock()-start
     exp_score=-1
+    best_score=-200
+    best_cigar=''
+    best_seq, best_loc='',0
     for i, alignment in enumerate( alignments):
-        l,r,subject=subject_sequences[i]
+        l,r,subject=aligned_subjs[i]
         if alignment['editDistance']>max_dist:continue
         if alignment['editDistance']==-1: continue
-##        print l,r
 
-
-
-##        print subject
-##        print alignment['editDistance']
         cigar_string=alignment['cigar']
 ##        print cigar_string
-##        print alignment['locations']
-
         loc=alignment['locations'][0]
-##        print loc
+
         start=time.clock()
-##        matching_positions, subj_matching_positions, mismatching_positions, subj_mismatching_positions, indel= ParseEdlibCigar(cigar_string)
         parse_time+=time.clock()-start
-##        for i in [matching_positions, subj_matching_positions, mismatching_positions, subj_mismatching_positions]:
-##            print i
-##        print ''.join([read[p] for p in  matching_positions ])
-##        print ''.join([subject[loc[0]:loc[1]+1][p] for p in  subj_matching_positions ])
-##        print cigar_string
+
         start=time.clock()
 ##        try:
+##        print read
+##        print subject
         alignment_score=ScoreAlignment(quality_array, cigar_string)
+
+
+##        print alignment_score
 ##        print alignment_score
         alignment_scores.append(alignment_score)
-        subj_seq= has_index.QueryReference(l)[0][0]
-        subj_l= has_index.QueryReference(abs(l))[1][0]
-        subj_r= has_index.QueryReference(abs(r))[1][0]
+        subj_seq= has_index.QueryReference(l)[0]
+        if subj_seq=='': subj_seq= has_index.QueryReference(r)[0]
+        subj_l= has_index.QueryReference(abs(l))[1]
+        if subj_l==-1:subj_l=0
+        subj_r= has_index.QueryReference(abs(r))[1]
+        if subj_r==-1: subj_r=subj_l+200
         if subj_seq==exp_seq and exp_pos<subj_r and subj_l<=exp_pos:
             exp_score=alignment_score
+##            best_cigar=cigar_string
 ##        except:
 ##            continue
+        if alignment_score>best_score:
+            best_score=alignment_score
+            best_cigar=cigar_string
+            best_loc=subj_l
+            best_seq=subj_seq
         score_time+=time.clock()-start
+
+
     if exp_score!=-1:
-        mapq=min(40, -4.34*numpy.log(1-( numpy.exp( exp_score)/sum(numpy.exp( alignment_scores)))))
+        if len(alignment_scores)>1:
+            linear_probs= numpy.exp( alignment_scores)
+            very_small_probs=numpy.isnan(linear_probs)+numpy.isinf(linear_probs)
+            mapq=-4.34*numpy.log(1.-( numpy.exp( exp_score))/numpy.nansum( linear_probs[~very_small_probs]))*.33
+            mapq/=52.61444578/40.
+            if numpy.isnan(mapq) or numpy.isinf(mapq):
+                mapq=40
+        else:
+            mapq=40
     else:
         mapq=0
+
+##        print 1.-( numpy.exp( exp_score)/(numpy.exp( alignment_scores).sum()))
+##        print alignment_scores
 ##    print alignment_scores
 ##    print mapq
-    return mapq
+    return mapq, best_seq, best_loc, best_cigar
 
 
 def GetPotentialTargetSequences(read, hash_index):
+    begin=time.clock()
+    start=time.clock()
+    read_length=len(read)
+    seeds=hash_index.decompose_read(read, .4)
+##    print seeds
+    pos=[]
+    start=time.clock()
+    seed_count=float( len(seeds)+1.)
+
+    for i in range(len(seeds[0])):
+        try:  #If the seed is present in the reference
+            hit_pos= hash_index.kmer_location_dict[seeds[0][i]]
+            pos+=hit_pos
+        except:  #If it is absent
+            continue
+    print time.clock()-start, 'Build'
+
+    start=time.clock()
+
+    pos=numpy.sort(pos)
+##    pos=numpy.array(pos)[sort_ind]
+    singletons=FindSingletons(pos,len(read))
+    pos=pos[singletons]
+    print time.clock()-start, 'Sort'
+    start=time.clock()
+##    split_indices=numpy.concatenate(([0], ClusterByDistances(pos, len(read)), [len(pos)]))
+    split_indices=ParseCigar.ClusterByDistances(pos, 60)
+    print time.clock()-start, 'Cluster'
+    start=time.clock()
+
+    grouped_positions=[]
+    diff=numpy.diff(split_indices)
+
+    size_set=sorted(diff)[::-1]
+
+    if len(size_set)>2:
+        min_size=max(2,min( (size_set[1]-1,size_set[1]*.5)))
+    else: min_size=2
+
+    accept_ind=numpy.where(diff>=min_size)[0]
+    accept_ind=sorted(accept_ind)
+    if len(accept_ind)>5:
+        accept_ind=accept_ind[-5:]
+
+    for ind in accept_ind:
+
+        grouped_positions.append(pos[split_indices[ind]:split_indices[ind]+diff[ind]])
+
+    mean_pos=[int(numpy.mean(g)) for g in grouped_positions]
+    strand=numpy.sign(mean_pos)
+    subject_sequences=[]
+    print time.clock()-start, 'Split'
+    start=time.clock()
+    for i in range(len(mean_pos)):
+        left,right=abs(mean_pos[i])-read_length,abs(mean_pos[i])+read_length
+        if strand[i]==1:
+            subject=str(hash_index.consensus_sequences[left-50:right+50])
+        else: #Hit is on the reverse strand
+            subject=str(hash_index.consensus_sequences[left-50:right+50].reverse_complement())
+        subject_sequences.append((left,right,subject))
+    print time.clock()-start, 'Extract'
+    print time.clock()-begin, 'Total'
+    return subject_sequences
+
+
+def GetPotentialTargetSequences_svaed(read, hash_index):
+    start=time.clock()
     read_length=len(read)
     seeds=hash_index.decompose_read(read, .4)
 ##    print seeds
     pos,seed_id=[],[]
     start=time.clock()
+
     for i in range(len(seeds[0])):
         try:
             hit_pos= hash_index.kmer_location_dict[seeds[0][i]]
             pos+=hit_pos
             seed_id+=[i]*len(hit_pos)
         except:
+##            print seeds[0][i]
             continue
 ##    print time.clock()-start
 
     start=time.clock()
     sort_ind=numpy.argsort(pos)
     pos=numpy.array(sorted( pos))
+    print len(pos)
     sorted_seeds=numpy.array(seed_id)[sort_ind]
+##    print time.clock()-start
 ##    return pos
+
     singletons=FindSingletons(pos,len(read))
     pos=pos[singletons]
-##    print len(pos)
+    print len(pos)
     sorted_seeds=sorted_seeds[singletons]
 ##    print pos
 
-##    print time.clock()-start
+
 ##    print test
 ##    print len(pos)
 
 
     start=time.clock()
-    split_indices=ClusterByDistances(pos, len(read))
-
+    split_indices=numpy.concatenate(([0], ClusterByDistances(pos, len(read)), [len(pos)]))
+    print split_indices
+##    print time.clock()-start
+##    split_count=
+##    return split_indices, pos, sorted_seeds
+    start=time.clock()
     grouped_positions=numpy.split(pos, split_indices)
-
+    print grouped_positions
     grouped_seeds=numpy.split(sorted_seeds, split_indices)
-
+##    print time.clock()-start
     group_sizes=numpy.array( [len(set( g)) for g in grouped_seeds])
 
 
     #exclude clusters with few counts
-
+    start=time.clock()
     size_set=sorted(group_sizes)[::-1]
 
     if len(size_set)>2:
         min_size=max(2,min( (size_set[1]-1,size_set[1]*.5)))
     else: min_size=2
-
+##    min_size=2
     start=time.clock()
     keep_indices=numpy.where(group_sizes>=min_size)[0]
+##    if len(keep_indices)>5:
+##        keep_indices=numpy.argsort(group_sizes)[-5:]
+
     grouped_positions=[grouped_positions[i] for i in keep_indices ]
     grouped_seeds=[grouped_seeds[i] for i in keep_indices ]
 
@@ -736,20 +892,30 @@ def GetPotentialTargetSequences(read, hash_index):
     strand=numpy.sign(mean_pos)
     subject_sequences=[]
 
-    start=time.clock()
+##    start=time.clock()
     for i in range(len(mean_pos)):
         left,right=abs(mean_pos[i])-read_length,abs(mean_pos[i])+read_length
         if strand[i]==1:
-            subject=str(hash_index.consensus_sequences[left:right])
+            subject=str(hash_index.consensus_sequences[left-50:right+50])
         else: #Hit is on the reverse strand
-            subject=str(hash_index.consensus_sequences[left:right].reverse_complement())
+            subject=str(hash_index.consensus_sequences[left-50:right+50].reverse_complement())
         subject_sequences.append((left,right,subject))
 ##    print time.clock()-start
     return subject_sequences
 
+
+def CythonScore(cigar, qual, phred=33):
+    t=ParseCigar.ParseEdlibCigar(cigar)
+##    print t
+    s=ParseCigar.ComputeAlignmentScore(qual, numpy.array( t[0]),numpy.array( t[1], int), t[2], t[3], t[4])
+    return s
+
+
 def FindSingletons(pos, cutoff=60):
     test=abs(pos[1:]-pos[:-1])
+
     test=numpy.concatenate(([1000], test, [1000]))
+
     return numpy.minimum(test[1:], test[:-1])<cutoff
 
 def ClusterByDistances( posList, distance_cutoff=60 ):
@@ -767,35 +933,51 @@ def ClusterByDistances( posList, distance_cutoff=60 ):
     return indices
 def StoreIndex(index, outfile):
     outhandle=open(outfile, 'w')
+    outtable=csv.writer(outhandle, delimiter='\t')
     #Write the general parameters
     method=index.method
     phred=index.phred
     k=index.k
     prefix_length=index.prefix_length
-    outhandle.write('@a:method\t{0}\n'.format(method))
-    outhandle.write('@a:phred\t{0}\n'.format(phred))
-    outhandle.write('@a:k\t{0}\n'.format(k))
-    outhandle.write('@a:prefix\t{0}\n'.format(prefix_length))
-
+    row=['@a:method', method]
+    outtable.writerow(row)
+    row=['@a:phred', phred]
+    outtable.writerow(row)
+    row=['@a:k', k]
+    outtable.writerow(row)
+    row=['@a:prefix', prefix_length]
+    outtable.writerow(row)
     #Write the location dictionary
-    for key in index.kmer_location_dict:
+    for key in index.kmer_location_dict.keys():
         sorted_loc=sorted([str(k) for k in index.kmer_location_dict[key]])
-        outhandle.write('@d:{0}\t{1}\n'.format(key,','.join(sorted_loc)))
+        row=['@d:{0}'.format(key), ','.join(sorted_loc)]
+        outtable.writerow(row)
+
 
     #Write consensus sequences
     cons_seq=index.consensus_sequences
 
     for i in range(0, len(cons_seq)-10000, 10000):
         seq_slice=str(cons_seq[i:i+10000])
-        outhandle.write('@C:{0}\t{1}\n'.format(i,seq_slice))
+        row=['@C:{0}'.format(i),seq_slice ]
+        outtable.writerow(row)
+
     seq_slice=str(cons_seq[i+10000:])
-    outhandle.write('@C:{0}\t{1}\n'.format(i+10000,seq_slice))
+    row=['@C:{0}'.format(i),seq_slice ]
+    outtable.writerow(row)
+
     left_list=[str(l) for l in index.left]
-    outhandle.write('@Q:L\t{0}\n'.format(','.join(left_list)))
+    row=['@Q:L',','.join(left_list)]
+    outtable.writerow(row)
+
     right_list=[str(r) for r in index.right]
-    outhandle.write('@Q:R\t{0}\n'.format(','.join(right_list)))
+    row=['@Q:R',','.join(right_list)]
+    outtable.writerow(row)
+
     name_list=[str(n) for n in index.name_list]
-    outhandle.write('@Q:N\t{0}\n'.format(','.join(name_list)))
+    row=['@Q:N',','.join(name_list)]
+    outtable.writerow(row)
+
     outhandle.close()
 
 def LoadIndex(infile, index):
@@ -805,6 +987,7 @@ def LoadIndex(infile, index):
     #Write the general parameters
     sequence=''
     for row in intable:
+##        print row
         rtype,attribute= row[0].split(':')
         if rtype=='@a': #Attribute
             value=row[1]
@@ -814,7 +997,9 @@ def LoadIndex(infile, index):
             if attribute=='prefix': index.prefix_length=int(value)
         if rtype=='@d': #Kmer dictionary
             key=attribute
+
             values=[int(v) for v in row[1].split(',')]
+
             index.kmer_location_dict[key]=values
         if rtype=='@C':#Consensus sequence
             sequence+=row[1]
@@ -831,19 +1016,30 @@ def LoadIndex(infile, index):
 
     inhandle.close()
 
-def ScoreAlignment(quality_string, cigar,phred_base=64, phred_const=4.34):
+def ScoreAlignment(quality_string, cigar,phred_base=33, phred_const=4.34):
 
     quality=quality_string
+    start=time.clock()
     matching_positions, mismatching_positions, indel= ParseEdlibCigar(cigar)
+##    print time.clock()-start
+    start=time.clock()
+    matching_positions= numpy.array( matching_positions[0])
+    mismatching_positions= numpy.array(mismatching_positions[0])
     weight=numpy.exp(-1* quality/phred_const)
+##    print weight
     match_error_prob=numpy.log( 1.-weight[matching_positions]).sum()
-
+##    print '\t', weight
+##    print '\t', numpy.log( 1.-weight[matching_positions])
     if len(mismatching_positions)>0:
         mismatch_error_prob=numpy.log( weight[mismatching_positions]/3.).sum()
     else:
         mismatch_error_prob=0
 
-    score=match_error_prob+mismatch_error_prob +indel
+##    print '\t', numpy.log( weight[mismatching_positions]/3.)
+##    print '\t', match_error_prob, mismatch_error_prob
+    score=match_error_prob+mismatch_error_prob - indel
+##    print time.clock()-start
+##    print cigar, len(mismatching_positions), score
     return score
 
 def ParseEdlibCigar(cigar):
@@ -937,17 +1133,23 @@ def TestMapQ(infile, outfile, index):
     for row in intable:
 
         if row[0]!=row[6]: continue
+        if row[1]==row[7]: continue
         count+=1
-        r, q=row[4], row[5]
+        r1, q1=row[4], row[5]
         exp_seq=row[0]
         exp_pos=(float(row[2])+float(row[3]))/2
 
-        try:
-            score=ScoreRead(r,q,index, exp_seq, exp_pos)
-            row=[int(row[2]), score, float(row[14])]
-            outtable.writerow(row)
-        except:
-            continue
+        r2, q2=row[10], row[11]
+
+        exp_seq_2=row[0]
+        exp_pos_2=(float(row[8])+float(row[9]))/2
+
+        score1, best_seq_1, best_loc_1, best_cigar_1=ScoreRead(r1,q1,index, exp_seq, exp_pos)
+        score2, best_seq_2, best_loc_2, best_cigar_2=ScoreRead(r2,q2,index, exp_seq_2, exp_pos_2)
+        row=[int(row[2]),int(row[8]), score1, score2, float(row[14]), float(row[15]),row[1], row[4],r2, best_seq_1, best_loc_1, best_cigar_1, best_seq_2, best_loc_2, best_cigar_2]
+        outtable.writerow(row)
+##        except:
+##            continue
 
     inhandle.close()
     outhandle.close()
@@ -1034,7 +1236,10 @@ def main(argv):
     print param
     if param=={}: return()
     index=HashedIndex()
+
     LoadIndex(param['-ind'], index)
+    print len (index.consensus_sequences)
+    print len(index.kmer_location_dict.keys())
     if param.has_key('-o'):
         TestMapQ(param['-i'], param['-o'], index)
         return()

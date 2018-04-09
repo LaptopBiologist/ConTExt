@@ -1474,7 +1474,7 @@ def pipeline (inDir, outDir, AssemblyIndex, TEIndex, threads, config, cons_file=
             for e in Ends:
                 RunLog.write('\nConverting insertion alignments to consensus alignments')
                 alignedTEs='{0}/{1}_{2}_p_{3}_sorted.sam'.format(outDir,sample, e, 'te')
-                converted, total, ratio=AlignmentConverter.ConvertSAMFromInsertionsToConsensus(alignedTEs, convTable, cons_file)
+                converted, total, ratio=AlignmentConverter.ConvertSAMFromInsertionsToConsensus(alignedTEs, convTable, cons_file, threads=int( threads))
                 RunLog.write('\{0} out of {1} insertions converted to consensus ({2}%)\n'.format(converted, total, ratio))
 
 ##        print jabber

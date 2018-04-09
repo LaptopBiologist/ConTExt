@@ -14,7 +14,7 @@
 #Should the reads be renamed? If in doubt, say yes.
 ?RenameReads=True
 
-%threads=7
+%threads=8
 
 #Is this GemCode data?
 ?Gemcode=False

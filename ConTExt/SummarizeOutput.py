@@ -438,7 +438,7 @@ def SplitConTEXtOutput(infile, outDir):
 #------------------------------------------------------------------------------#
 
 
-def PileupConsensusSequences(indir,  outdir,in_tail, seq_file):
+def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,sample_pos=1, rep_pos=-1 ):
     MakeDir(outdir)
     files=os.listdir(indir)
     image_directory={}
@@ -455,7 +455,12 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file):
             tail=root.split('_')[-1]
             name='_'.join(root.split('_')[:-1])
             if tail!=in_tail: continue
-            sample,rep,blank= root.split('_')
+            root_parts= root.split('_')
+            sample=root_parts[sample_pos]
+            if rep_pos!=-1:
+                rep=root_parts[rep_pos]
+            else:
+                rep='1'
 
             snp_dict[rpt][sample]=numpy.ndarray((5,length))
             snp_dict[rpt][sample].fill(0.)
@@ -471,7 +476,13 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file):
         name='_'.join(root.split('_')[:-1])
         if tail!=in_tail: continue
         print name
-        sample,rep,blank= root.split('_')
+
+        root_parts= root.split('_')
+        sample=root_parts[sample_pos]
+        if rep_pos!=-1:
+            rep=root_parts[rep_pos]
+        else:
+            rep='1'
         if rep=='2': continue
 ##        continue
 
@@ -485,6 +496,8 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file):
             except:
                 print row
                 print jabber
+            #Delete this tomorrow
+            if line.Seq1=='L1HS' or line.Seq1=='AluYb10': continue
             if line.feature=='Consensus':
 ##                print line.ID
                 try:
@@ -503,7 +516,7 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file):
         for sample in sorted(snp_dict[repeat].keys()):
             repeat_array.append(snp_dict[repeat][sample])
         outfile='{0}/{1}_snps.npy'.format(outdir, repeat)
-        numpy.save(outfile, numpy.array(snp_dict[repeat]))
+        numpy.save(outfile, numpy.array(repeat_array))
 
 def PileUp(clust, Seq='', length=8119):
     SNP_array=numpy.ndarray((5,length))
@@ -514,6 +527,7 @@ def PileUp(clust, Seq='', length=8119):
     count=0.
     cig_list,md_list, pos_list=[],[],[]
     for i in range(clust.count):
+        if clust.MapQY[i]<20 and clust.MapQX[i]<20: continue
         x_3=clust.x_list[i]
         y_3=clust.y_list[i]
         try:
