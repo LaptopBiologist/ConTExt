@@ -708,7 +708,9 @@ def ConvertSAMFromInsertionsToConsensus(inSam, conversionFile, consensus_file=''
 ##        convertCount+=conv_inc
     inHandle.close()
     tempHandle.close()
-
+    if threads>1:
+        pool.close()
+        pool.join()
     if replace_input==True:
         os.remove(inSam)
         os.rename(tempFile, inSam)
@@ -728,10 +730,13 @@ def ConvertSamRow(row,consSequences, consDict, insDict):
         total_inc+=1
 ##            newPos, newCigar= CombineAlignments(line.pos, insDict[line.contig].insStart\
 ##            ,insDict[line.contig].insEnd, line.cigar, insDict[line.contig].YIntercepts)
+
         newPos,newCigar=MapToConsensus(line.pos, insDict[line.contig].insStart, line.cigar, insDict[line.contig].YIntercepts, insDict[line.contig].slope, insDict[line.contig], len(line.seq))
 
         #Calculate how long the alignment to the insertion was
+
         originalCigar=ParseCIGAR(line.cigar)
+
         originalLength=originalCigar['M']+originalCigar['D']
 
         #Calculate how long the new alignment to the consensus is
@@ -752,6 +757,7 @@ def ConvertSamRow(row,consSequences, consDict, insDict):
             line.seq=str(Seq.Seq(line.seq).reverse_complement())
             line.qual=line.qual[::-1]
             line.flag=16-line.flag
+
             newCigar=ReverseCIGAR(newCigar)
 
         if numpy.isnan( newPos)==False and .5*originalLength<=newLength<=1.5*originalLength:
@@ -781,6 +787,7 @@ def ConvertSamRow(row,consSequences, consDict, insDict):
 
         QD_string=''
         if line.contig!="*":
+
             MD_string, QD_string=UpdateMDString(line, consSequences,slope)
 
             #Find the MD string in the optional flags
@@ -807,13 +814,19 @@ def UpdateMDString(line, consDict,slope):
 #SAM specification MD includes deletions, that information is already present in the CIGAR
 #MD string in normal SAM spec indicates the reference position, not the read's nt.
 ##    line=SamLine(line) #delete this. It's just to tell the IDE what I'm doing
+
     CIGAR_array=ExpandCIGAR(line.cigar)
+
+    CIGAR_matches=CIGAR_array=='M'
+    CIGAR_insertions=CIGAR_array=='I'
+    CIGAR_deletions=CIGAR_array=='D'
+
 ##    print CIGAR_array
-    cons_seq=consDict[line.contig].seq.upper()
+    cons_seq=str(consDict[line.contig].seq).upper()
 
     #Determine the interval
     align_begin=line.pos-1      #Python uses a zero-coordinate system, while SAM format uses 1-coordinate
-    aligned_length=((CIGAR_array=='M')+(CIGAR_array=='D')).sum()
+    aligned_length=(CIGAR_matches+CIGAR_deletions).sum()
     align_end=align_begin+aligned_length
 
     cons_align=cons_seq[align_begin:align_end]
@@ -828,19 +841,25 @@ def UpdateMDString(line, consDict,slope):
     #Don't need to reverse complement if flag=16 because Bowtie2 already does that automatically
 
     #Positions that are insertions relative to the reference are present in the read
-    read_cigar=CIGAR_array[(CIGAR_array=='M')+(CIGAR_array=='I')]
+    read_cigar=CIGAR_array[CIGAR_matches+CIGAR_insertions]
 ##    print read_cigar
     #Positions that are deletions relative to the reference are present in the reference
-    cons_cigar=CIGAR_array[(CIGAR_array=='M')+(CIGAR_array=='D')]
+    cons_cigar=CIGAR_array[CIGAR_matches+CIGAR_deletions]
 ##    print cons_cigar
-
+##    print time.clock()-start, 'Slice Time'
     #Convert the read and the quality string into numpy arrays for easy indexing
-    read_array=numpy.array( [i for i in line.seq.upper()])
-    qual_array=numpy.array([i for i in line.qual])
-    #Convert the corresponding region of the consensus to an array
-    cons_array=numpy.array( [i for i in cons_align])
 
+
+##    read_array=numpy.array( [i for i in line.seq.upper()])
+    read_array=numpy.fromstring( line.seq.upper(), '|S1')
+    qual_array=numpy.fromstring( line.qual, '|S1')
+    #Convert the corresponding region of the consensus to an array
+##    cons_array=numpy.array( [i for i in cons_align])
+    cons_array=numpy.fromstring(str( cons_align),'|S1')
+##    print time.clock()-start, 'Comprehension Time'
     #Identify regions of each array where the read positions are present in the consensus (and vice versa)
+
+    start=time.clock()
     read_matches=read_array[read_cigar=='M']
     cons_matches=cons_array[cons_cigar=='M']
     qual_matches=qual_array[read_cigar=='M']
@@ -858,11 +877,14 @@ def UpdateMDString(line, consDict,slope):
 ##    print mismatch_values
     mismatch_indices=list( numpy.where(mismatch_positions==False)[0])
     padded_indices= [-1]+ mismatch_indices + [len(read_matches)]
-    match_lengths=numpy.diff( padded_indices)-1     # Why???
+    match_lengths=numpy.diff( padded_indices)-1
+
+##    print time.clock()-start, 'Numpy Time'
 
 
     MD_string="MD:Z:{0}".format( ''.join(chain( *zip(match_lengths.astype(str), mismatch_values))))
     qual_string="QD:Z:{0}".format( ''.join(qual_values))
+##    print time.clock()-start, 'String Time'
 ##    if slope!=1:
 ##        print read_matches
 ##        print cons_matches
@@ -925,6 +947,20 @@ def ConvertInterceptToCigar(intercept):
             string+='M'
     return string
 
+def ConvertInterceptToCigarPython(intercept):
+    string=''
+    matches=0
+    deletions=0
+    insertions=0
+    last=0
+    for i in intercept:
+        if i==0:
+            matches+=1
+            last='M'
+
+
+    return string
+
 def ConvertInterceptToCigarEfficient(intercept):
     string=''
 ##    print intercept
@@ -978,6 +1014,7 @@ def MapToConsensus(readStart, insertionStart, cigar_string, yintercepts,slope,co
 
     #Otherwise, rewrite this bit of code to make it clearer
 ##    try:
+
     cigar=SplitCigar(cigar_string)
 
     #build a mapping from read to insertion position: what insertion positions does the read cover?
@@ -985,19 +1022,17 @@ def MapToConsensus(readStart, insertionStart, cigar_string, yintercepts,slope,co
     #A deletion in the read relative to the individal element increases the y-intercept by the number of deleted positions
     #An insertion in the read relative to the individual element is represented as a NaN and decrements
     #the y-intercept at the next matching position by the number of inserted nucleotides
+
     f_prime= DetermineYIntercepts(insertionStart, readStart, cigar)
+
 
     f_prime_nans=numpy.isnan(f_prime)
     f_prime_insertions=numpy.cumsum(f_prime_nans)
-    insertionCoordinates=f_prime+numpy.array(range(len(f_prime)))+insertionStart-1  #Python uses a zero-based coordinate system
-##    print insertionCoordinates
+    insertionCoordinates=f_prime+numpy.arange(len(f_prime))+insertionStart-1  #Python uses a zero-based coordinate system
+
     #NaNs are positions of the read that are not present in the insertion
     insertionPositions=insertionCoordinates[~numpy.isnan(insertionCoordinates)].astype(int)
-##    insertionPositions=insertionCoordinates.astype(int)
-##    pyplot.plot(insertionPositions)
-##    pyplot.show()
-##    pyplot.close()
-##        print insertionPositions
+
     #convert to consensus positions
 ##    interceptsIC=yintercepts[insertionCoordinates]
 
@@ -1015,19 +1050,11 @@ def MapToConsensus(readStart, insertionStart, cigar_string, yintercepts,slope,co
     #Ignores insertions relative to the individual sequence
 ##    newIntercepts=interceptsIC+f_prime[~numpy.isnan(f_prime)]
     newIntercepts=interceptsIC+  f_prime
-##    Intercepts_with_nan= interceptsIC+f_prime
-##    pyplot.plot(newIntercepts, c='b')
-##    pyplot.plot(interceptsIC+f_prime, c='r', ls='--')
-##    pyplot.show()
-##    pyplot.close()
-##        print newIntercepts
-##    newPositions=interceptsIC+ slope* insertionPositions+1
+
     newPositions=interceptsIC+ slope* insertionCoordinates+1*slope
-##    return newPositions
+
     nonNaNPos=newPositions[~numpy.isnan( newPositions)]
-##    pyplot.plot(newPositions)
-##    pyplot.show()
-##    pyplot.close()
+
     if len(nonNaNPos)==0:
         newPos=numpy.nan
         return newPos, ''
@@ -1040,32 +1067,14 @@ def MapToConsensus(readStart, insertionStart, cigar_string, yintercepts,slope,co
         else:
             newPos=nonNaNPos[-1]
             newPos_1=min(nonNaNPos)
-##            print slope, newPos, newPos_1
-##    print newPositions
-##    print newIntercepts
-##    print interceptsIC
-##    print jabber
-##    if slope==1:
+
     temp_intercepts=AlignmentToIntercepts(newPositions, slope)
+
     newCigar=ConvertInterceptToCigarEfficient(temp_intercepts)
-##    if slope==-1:
-##        newCigar=InterceptToCIGAR(reversed( -1* newIntercepts))
-##    print newCigar
+
+
     newCigarParts=ParseCIGAR(newCigar)
-##    if newCigar!='' and newCigarParts['M']+newCigarParts['I']!=read_len:
-##        pyplot.plot(interceptsIC, c='r')
-##        pyplot.plot(newIntercepts, c='g', ls='--')
-##        pyplot.plot(f_prime, c='b', ls='.')
-##        pyplot.show()
-##        pyplot.close()
-##        pyplot.plot(newPositions, c='r')
-##        pyplot.show()
-##        pyplot.close()
-##        print newCigar, read_len
-##        return newPositions, False
-##        print jabbere
-##    newCigar=InterceptToCIGAR(Intercepts_with_nan)
-##    print newPos
+
     if newPos<0:
         print conv.insStart, conv.insEnd, conv.consStart, conv.consEnd
         print  conv.consStart - conv.slope* conv.insStart
