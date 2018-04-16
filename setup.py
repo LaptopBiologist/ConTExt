@@ -11,6 +11,10 @@ from shutil import rmtree
 
 from setuptools import find_packages, setup, Command
 
+from distutils.core import setup
+from Cython.Build import cythonize
+import numpy
+
 # Package meta-data.
 NAME = 'ConTExt'
 DESCRIPTION = 'A bioinformatic pipeline for identifying structural variation in repetitive DNA using NGS data.'
@@ -98,4 +102,11 @@ setup(
     cmdclass={
         'upload': UploadCommand,
 },
+ext_modules = cythonize(
+           "ConTExt/tools/cython_extensions.pyx",  # additional source file(s)
+           language="c++",
+                       # generate C++ code
+      ),include_dirs=[numpy.get_include()],
 )
+
+##setup(, build_dir='ConTExt/tools')
