@@ -256,360 +256,70 @@ class HashedIndex():
             pass
         return pos
 
-    def decompose_read(self, read, seed_spacing=.8):
-        seed_length=self.k
-        step_size=max(1, int(seed_spacing*seed_length))
-        seed_starts=list( set( range(0, len(read)-seed_length, step_size)+[len(read)-seed_length]))
-        seeds=[read[x:x+seed_length] for x in seed_starts]
-        return seeds, seed_starts
 
-    def CythonScore(self, cigar, qual, read_len, phred=33):
-        cigar=cigar.encode('utf-8')
-        qual=qual.encode('utf-8')
-    ##    start=time.clock()
-        t=cython_extensions.ParseEdlibCigar(cigar)
-    ##    print time.clock()-start, "Parse"
-    ##    start=time.clock()
-        match_array=numpy.array( t[0])
-        mismatch_array=numpy.array( t[1], int)
-        length_penalty=read_len-len(match_array)-len(mismatch_array)
-    ##    print time.clock()-start, "Numpy"
-    ##    start=time.clock()
-        s=cython_extensions.ComputeAlignmentScore(qual,match_array ,mismatch_array, t[2], t[3], t[4])
-    ##    print time.clock()-start, "Score"
-        return s-2*length_penalty
+    def query_read(self,read, seed_spacing=.8, qual=''):
+        #Decompose the read into seeds
+        #If seed spacing is less than 1, seeds overlap and every nucleotide
+        #in the read is used
+        read_len=len(read)
+        seeds, step_size=self.decompose_read(read, seed_spacing)
 
-    def ConvertAlignmentCoordinates(self,alignment, loc ):
+        if qual!='':
+            qual_as_array=numpy.array([ord(s)-self.phred for s in qual])
+            qual_as_array[qual_as_array<0]=0
+        else: qual_as_array=''
 
-        align_l,align_r=loc
-        r= alignment.subj_left+align_r
-        l=align_l+ alignment.subj_left
-
-        subj_seq= self.QueryReference(l)[0]
-
-
-        if subj_seq=='': subj_seq= self.QueryReference(r)[0]
-        subj_l= self.QueryReference(abs(l))[1]
-
-        if subj_l==-1:subj_l=0
-        subj_r=subj_l+align_r-align_l
-
-    ##        subj_r= has_index.QueryReference(abs(r))[1]
-        #Convert to base 1
-        try:
-            subj_l=subj_l[0]+1
-        except:
-            subj_l+=1
-        #Convert to base 1 and make the bound open
-        try:
-            subj_r=subj_r[0]+2
-        except: subj_r+=2
-        if subj_r==-1: subj_r=subj_l+200
-        return subj_seq, subj_l, subj_r
-
-    def AlignRead(self,read, subject_sequence, k, distance_cutoff=4):
-        min_k=k
-        l,r,subject,strand=subject_sequence
-    ##    print min_k, subject
-    ##    print len(subject)
-        if len(subject)==0:
-            return [], min_k
-        all_found=False
-        alignments=[]
-        alignment=edlib.align(read, subject, 'HW', 'path', k=min_k)
-        edit_distance=alignment['editDistance']
-        if edit_distance>=0:
-            min_k=min(min_k,edit_distance+distance_cutoff )
-            alignment_information=Alignment(alignment, subject, l, r, strand)
-            alignments.append(alignment_information)
-
-        if len(alignment['locations'])>1:
-            second_hit_loc=alignment['locations'][1]
-            l+=second_hit_loc[0]
-            r-=second_hit_loc[1]
-            masked_sequence=subject[second_hit_loc[0]:second_hit_loc[1]]
-            if len(masked_sequence)>0:
-                alignment=edlib.align(read, masked_sequence, 'HW', 'path', k=min_k)
-                if edit_distance>=0:
-                    alignment_information=Alignment(alignment, subject, l, r, strand)
-                    alignments.append(alignment_information)
-    ##    except:
-    ##        t=0
-        return alignments, min_k
-
-
-    def FindSingletons(self, pos, cutoff=60):
-        test=abs(pos[1:]-pos[:-1])
-
-        test=numpy.concatenate(([1000], test, [1000]))
-
-        return numpy.minimum(test[1:], test[:-1])<cutoff
-
-    def GetPotentialTargetSequences(self,read, Print=False):
-
-        read_length=len(read)
-        seeds=self.decompose_read(read, .4)
-
-        pos=[]
+        qual_slices=[qual_as_array[ step_size[i]:step_size[i]+self.k] for i in range(len(step_size))]
+        #Wrt the Hamming metric ind the 10 nearest neighbors of each seed in the
+        #consensus index
+        query_hits=[]
         start=time.clock()
-        seed_count=float( len(seeds[0])+1)
+        query_hits=[self.query_seed(seeds[i], qual=qual_slices[i]) for i in range(len(seeds))]
+        self.seed_query_time+=time.clock()-start
+        start=time.clock()
+        hits,sequence_hits=zip(*query_hits)
+        self.zip_time=time.clock()-start
+        #Determine the location of each neighbor kmer
+        location_dictionary={'pos':[], 'dist':[], 'seed':[], 'sequence':[]}
+        start=time.clock()
+        for i,hit in enumerate( hits):
 
-        for i in range(len(seeds[0])):
-            try:  #If the seed is present in the reference
-                hit_pos= self.fuzzy_location_dict[seeds[0][i]]
-            except:
-                hit_pos=self.SearchNeighborDict(seeds[0][i])
-    ##            continue
-            pos+=hit_pos
-
-        if len(pos)==0: return []
-        pos=numpy.sort(pos)
-        if Print==True: print pos
-        singletons=self.FindSingletons(pos,len(read))
-        pos=pos[singletons]
-        split_indices=cython_extensions.ClusterByDistances(pos, 60)
-
-        grouped_positions=[]
-        diff=numpy.diff(split_indices)
-        if Print==True: print diff
-        size_set=sorted(diff)[::-1]
-
-        if len(size_set)>2:
-            max_hit=min(seed_count,size_set[1] )
-            min_size=max(2,max( (max_hit-2,max_hit*.7)))
-        else:
-            max_hit=min(seed_count,numpy.max(diff) )
-            min_size=max(2,max( (max_hit-2,max_hit*.6)))
-
-        accept_ind=numpy.where(diff>=min_size)[0]
-        subject_sequences=[]
-        for ind in accept_ind:
-            grouped_positions=pos[split_indices[ind]:split_indices[ind]+diff[ind]]
-            repeated_hits=len(grouped_positions)-len(set(grouped_positions))
-            magnitudes=numpy.abs( grouped_positions)
-            left,right=min(magnitudes), max(magnitudes)
-            hit_length=right+self.k-left
-            unaligned_length=max(30, abs(read_length+40-hit_length))
-            strand=numpy.sign((left+right)/2.)
-            left=left-unaligned_length
-            right=right+unaligned_length+self.k
-
-            if strand==1:
-                subject=self.consensus_sequences[left:right]
-                if subject.count('N')>0:
-                    non_N_ind_left=min(subject.find('A'), subject.find('C'), subject.find('G'), subject.find('T'))
-                    left+=non_N_ind_left
-                    subject=subject[non_N_ind_left:]
-                    non_N_ind_right=subject.find('N')
-                    right-=non_N_ind_right
-                    subject=subject[:non_N_ind_right]
-            else: #Hit is on the reverse strand
-                subject=self.consensus_sequences_complement[left:right]#.reverse_complement())
-                if subject.count('N')>0:
-                    non_N_ind_left=min(subject.find('A'), subject.find('C'), subject.find('G'), subject.find('T'))
-                    left+=non_N_ind_left
-                    subject=subject[non_N_ind_left:]
-                    non_N_ind_right=subject.find('N')
-                    right-=non_N_ind_right
-                    subject=subject[:non_N_ind_right]
-                subject=subject[::-1]
-            subject_sequences.append((left,right,subject, strand))
-
-        return subject_sequences
+                location_dictionary['pos']+=hit['pos']
+                location_dictionary['dist']+=hit['dist']
+                location_dictionary['seed']+=[step_size[ i]]*len(hit['dist'])
+                location_dictionary['sequence']+=[i]*len(hit['dist'])
 
 
-    def EdlibToSamCigar(self,cigar):
-        edit_count=0
-        edit_type=''
-        current_count=0
-        decimal_num=0
-        current_edit='M'
-        new_cigar=''
-        for char in cigar:
-            try:    #This is a number
-                digit=int(char)
-                edit_count*=10**decimal_num
-                edit_count+=digit
-                decimal_num+=1
-            except:
-                if char=='=':
-                    current_edit='M'
-                    current_count+=edit_count
-                    edit_count=0
-                    decimal_num=0
-                elif char=='X':
-                    current_edit='M'
-                    current_count+=edit_count
-                    edit_count=0
-                    decimal_num=0
-                else:
-                    new_cigar+=str(current_count)+current_edit
-                    new_cigar+=str(edit_count)+char
-                    current_edit=char
-                    edit_count=0
-                    current_count=0
-                    decimal_num=0
-        if current_count!=0:
-            new_cigar+=str(current_count)+current_edit
-        return new_cigar
 
-    def ComputeMapQ(self, alignment_scores, exp_score):
-        if len(alignment_scores)>1:
-            linear_probs= numpy.exp( alignment_scores)
-            very_small_probs=numpy.isnan(linear_probs)+numpy.isinf(linear_probs)
-            mapq=-4.34*numpy.log(1.-( numpy.exp( exp_score))/numpy.nansum( linear_probs[~very_small_probs]))*.33
-            mapq/=52.61444578/40.
-            if numpy.isnan(mapq) or numpy.isinf(mapq):
-                mapq=40
-        else:
-            mapq=40
-        return mapq
+        sort_ind=numpy.argsort(numpy.array(location_dictionary['pos']))
 
-    def ScoreRead(self, read, qual, exp_seq, exp_pos,exp_cigar, phred=33, realign=False, gap_open_penalty=8,gap_extend_penalty=3, match_score=4, mismatch_score=-6, alt_read=''):
-        read=read.upper()
-
-        #Identify potential alignments as regions with seed enrichments
-        if alt_read=='':
-            subject_sequences=self.GetPotentialTargetSequences(read)
-        else:
-            subject_sequences=self.GetPotentialTargetSequences(alt_read)
-
-        #If not seed hits can be identified, return no alignment
-        if subject_sequences==[]: return 0, '*',(-1,-1),'*'
-
-        #Convert the quality score into an array of integers
-        quality_array=numpy.array([ord( q)-self.phred for q in qual])
-
-        #This distance cutoff is used to define a maximum edit distance
-        #Positions with low quality scores have little impact on the alignment score
-        #So, how many positions are there in the read that will not impact alignment
-        #score?
-        distance_cutoff=1+(quality_array<20).sum()
-
-        #Align the read to each target sequence and  save the alignment score
-        alignment_scores=[]
-
-        #Align the read to all slices of the index returned by GetPotentialTargetSequences
-
-        aligned_subjs=[]
-        alignments=[]
-        min_k=20
-
-        for subject in subject_sequences:
-            new_alignments, min_k=self.AlignRead(read, subject, min_k,distance_cutoff )
-            alignments+=new_alignments
-
-        distances=numpy.array( [a.alignment['editDistance'] for a in alignments])
-
-        if alignments==[]: return 0, '*',(-1,-1),'*'
-
-        max_dist=max(distances)
-
-        exp_score=-1
-        best_score=-200
-        best_cigar=''
-        best_seq, best_loc='',0
-        best_alignment_subj=''
-
-        #Convert to base 1
-        best_left=0
-        #Convert to base 1 and make the bound open
-        best_right=0
-
-        mapq_curr=40
-        sorted_distances=numpy.argsort(distances)[::-1]
-        for i in sorted_distances:
-            alignment=alignments[i]
-            if alignment.alignment['editDistance']>max_dist:continue
-            if alignment.alignment['editDistance']==-1: continue
-
-            cigar_string=alignment.alignment['cigar']
-            alignment_score=self.CythonScore( cigar_string,qual, len(read))
-            alignment_scores.append(alignment_score)
-
-            subj_seq, subj_l, subj_r=self.ConvertAlignmentCoordinates(alignment,alignment.alignment['locations'][0])
-            if realign==False:
-                #MAPQ will be defined relative to the alignment reported by Bowtie2
-                print subj_seq, subj_l+1,subj_r+2, strand
-    ##            print exp_seq, exp_pos
-                if subj_seq==exp_seq and exp_pos<subj_r and subj_l<=exp_pos:
-
-                    exp_score=alignment_score
-                    best_cigar=cigar_string
-                else:
-                    continue
-            if realign==True:
-                #MAPQ will be defined relative to the best realignment identified
-                if alignment_score>best_score:
-                    if len(alignment_scores)>1:
-                        second_best=alignment_scores[ numpy.argsort(alignment_scores)[-2]]
-                        mapq_curr=second_best-alignment_score
-                    exp_score=alignment_score
-                    best_score=alignment_score
-                    best_cigar=cigar_string
-                    #Convert to base 1
-                    best_left=subj_l
-
-                    best_right=subj_r
-                    best_seq=subj_seq
-                    best_alignment_subj=alignment
-       ##    print time.clock()-start, 'Score time'
-            if exp_score!=-1:
+        location_dictionary['array']=numpy.array(\
+                        [location_dictionary['pos' ],\
+                        location_dictionary['dist'],\
+                        location_dictionary['seed'],\
+                        location_dictionary['sequence']], )[:,sort_ind]
+##                location_dictionary[seq][strand]['dist']=numpy.array(location_dictionary[seq][strand]['dist'])[sort_ind]
+##                location_dictionary[seq][strand]['seed']=numpy.array(location_dictionary[seq][strand]['seed'])[sort_ind]
+        self.organize_time+=time.clock()-start
+        start=time.clock()
+        if len(location_dictionary['pos'])>1:
+            split_ind=self.ClusterByDistances(location_dictionary['array'][0,:], read_len)
+            splits=numpy.split(location_dictionary['array'], split_ind, 1)
+        self.search_query_time+=time.clock()-start
+        #Organize the locations of these kmers into alignments
+        self.read_count+=1.
+        return location_dictionary, splits, sequence_hits
 
 
-                if mapq_curr>-2.3 and alignment_score>-2.3:
-                    break
+    def ClusterByDistances(self, posList, distance_cutoff=60 ):
+        """Taking a list of read positions sorted by chromosome position as input,
+        this carries out single-linkage agglomerative clustering with a distance
+        cutoff."""
 
-        if exp_score!=-1:
-            mapq=self.ComputeMapQ(alignment_scores,exp_score)
-        else:
-            mapq=0
-        #Realign the read with the Smith-Waterman algorithm
-        #The previous alignments are
-
-        best_cigar=self.EdlibToSamCigar(best_cigar)
-        cigar_string=best_cigar
-        if best_left!=exp_pos[0] or best_right!=exp_pos[1] or best_seq!=exp_seq\
-            or best_cigar!=exp_cigar: alignment_differs=True
-        else: alignment_differs=False
-        if realign==True and alignment_differs== True:
-            SSW=StripedSmithWaterman(read, gap_open_penalty=gap_open_penalty,gap_extend_penalty=gap_extend_penalty,match_score=match_score, mismatch_score=mismatch_score )
-            alignment=SSW(best_alignment_subj.subject)
-            cigar_string=alignment['cigar']
-            if alignment['query_begin']!=0:
-                cigar_string='{0}I'.format(alignment['query_begin'])+cigar_string
-            if alignment['query_end']!=len(read)-1:
-                cigar_string+='{0}I'.format(len(read)-alignment['query_end']-1)
-            best_seq, best_left, best_right=self.ConvertAlignmentCoordinates(best_alignment_subj, (alignment['target_begin'],alignment['target_end_optimal']))
-
-        return mapq, best_seq,( best_left,best_right),cigar_string
-
-    def QueryReference(self,pos):
-        strand=numpy.sign(pos)
-        pos=abs(pos)
-        hit_ind=(pos>=self.left)*(pos<self.right)
-        if hit_ind.sum()!=0:
-            name=self.name_list[hit_ind]
-            hit_pos=pos-self.left[hit_ind]
-        else:
-            l_min=numpy.min(abs( pos-self.left))
-            r_min=numpy.min(abs( pos-self.right))
-            if l_min<=r_min:
-                hit_ind=numpy.argmin(abs( pos-self.left))
-                name=self.name_list[hit_ind]
-                hit_pos=pos-self.left[hit_ind]
-            else:
-                hit_ind=numpy.argmin(abs( pos-self.right))
-                name=self.name_list[hit_ind]
-                hit_pos=self.right[hit_ind]-pos
-
-        if len(name)!=0:
-            name=name[0]
-            hit=hit_pos
-        else:
-            name=''
-            hit_pos=-1
-        return name, hit_pos
+        diffArray=numpy.diff(posList)   #Distance between adjacent read pairs on the chromosome arm
+        indices=numpy.where(diffArray>self.distance_cutoff)[0]+1 #Indices where the distnace exceeds the distance cutoff
+##        splitIndices=indices #Indices that will define cluster boundaries
+        return indices
 
     def FindAlignments(self):
         pass
@@ -669,7 +379,12 @@ class HashedIndex():
         self.organize_seeds_time=time.clock()-start
         return location_dictionary, hits
 
-
+    def decompose_read(self, read, seed_spacing=.8):
+        seed_length=self.k
+        step_size=max(1, int(seed_spacing*seed_length))
+        seed_starts=list( set( range(0, len(read)-seed_length, step_size)+[len(read)-seed_length]))
+        seeds=[read[x:x+seed_length] for x in seed_starts]
+        return seeds, seed_starts
 
     def GetSeq(self,ref):
         """Different from Tools.General_Tools.GetSeq function in that this returns
@@ -699,6 +414,32 @@ class HashedIndex():
         self.name_list=numpy.array(name_list)
         return  Seq (SeqLen)
 
+    def QueryReference(self,pos):
+        strand=numpy.sign(pos)
+        pos=abs(pos)
+        hit_ind=(pos>=self.left)*(pos<self.right)
+        if hit_ind.sum()!=0:
+            name=self.name_list[hit_ind]
+            hit_pos=pos-self.left[hit_ind]
+        else:
+            l_min=numpy.min(abs( pos-self.left))
+            r_min=numpy.min(abs( pos-self.right))
+            if l_min<=r_min:
+                hit_ind=numpy.argmin(abs( pos-self.left))
+                name=self.name_list[hit_ind]
+                hit_pos=pos-self.left[hit_ind]
+            else:
+                hit_ind=numpy.argmin(abs( pos-self.right))
+                name=self.name_list[hit_ind]
+                hit_pos=self.right[hit_ind]-pos
+
+        if len(name)!=0:
+            name=name[0]
+            hit=hit_pos
+        else:
+            name=''
+            hit_pos=-1
+        return name, hit_pos
 
 
     def index_kmers(self,sequence, k=15):
@@ -764,7 +505,35 @@ def CleanKmerLocations(hi, cutoff=60):
 ##    return sorted_loc
         hi.fuzzy_location_dict[key]=list(numpy.array(sorted_loc)[good_seeds])
 
+def AlignRead(read, subject_sequence, k, distance_cutoff=4):
+    min_k=k
+    l,r,subject,strand=subject_sequence
+##    print min_k, subject
+##    print len(subject)
+    if len(subject)==0:
+        return [], min_k
+    all_found=False
+    alignments=[]
+    alignment=edlib.align(read, subject, 'HW', 'path', k=min_k)
+    edit_distance=alignment['editDistance']
+    if edit_distance>=0:
+        min_k=min(min_k,edit_distance+distance_cutoff )
+        alignment_information=Alignment(alignment, subject, l, r, strand)
+        alignments.append(alignment_information)
 
+    if len(alignment['locations'])>1:
+        second_hit_loc=alignment['locations'][1]
+        l+=second_hit_loc[0]
+        r-=second_hit_loc[1]
+        masked_sequence=subject[second_hit_loc[0]:second_hit_loc[1]]
+        if len(masked_sequence)>0:
+            alignment=edlib.align(read, masked_sequence, 'HW', 'path', k=min_k)
+            if edit_distance>=0:
+                alignment_information=Alignment(alignment, subject, l, r, strand)
+                alignments.append(alignment_information)
+##    except:
+##        t=0
+    return alignments, min_k
 ##        min_k=min(min_k,edit_distance+distance_cutoff )
 ##
 ##        locations=alignment['locations']
@@ -798,13 +567,289 @@ class Alignment():
         self.strand=strand
         self.alignment=alignment
 
+def ConvertAlignmentCoordinates(alignment, loc, hash_index ):
+
+    align_l,align_r=loc
+    r= alignment.subj_left+align_r
+    l=align_l+ alignment.subj_left
+
+    subj_seq= hash_index.QueryReference(l)[0]
+
+
+    if subj_seq=='': subj_seq= hash_index.QueryReference(r)[0]
+    subj_l= hash_index.QueryReference(abs(l))[1]
+
+    if subj_l==-1:subj_l=0
+    subj_r=subj_l+align_r-align_l
+
+##        subj_r= has_index.QueryReference(abs(r))[1]
+    #Convert to base 1
+    try:
+        subj_l=subj_l[0]+1
+    except:
+        subj_l+=1
+    #Convert to base 1 and make the bound open
+    try:
+        subj_r=subj_r[0]+2
+    except: subj_r+=2
+    if subj_r==-1: subj_r=subj_l+200
+    return subj_seq, subj_l, subj_r
+
+def ScoreRead(read, qual, has_index,exp_seq, exp_pos,exp_cigar, phred=33, realign=False, gap_open_penalty=8,gap_extend_penalty=3, match_score=4, mismatch_score=-6, alt_read=''):
+    read=read.upper()
+
+    #Identify potential alignments as regions with seed enrichments
+    if alt_read=='':
+        subject_sequences=GetPotentialTargetSequences(read, has_index)
+    else:
+        subject_sequences=GetPotentialTargetSequences(alt_read, has_index)
+
+    #If not seed hits can be identified, return no alignment
+    if subject_sequences==[]: return 0, '*',(-1,-1),'*'
+
+    #Convert the quality score into an array of integers
+    quality_array=numpy.array([ord( q)-phred for q in qual])
+
+    #This distance cutoff is used to define a maximum edit distance
+    #Positions with low quality scores have little impact on the alignment score
+    #So, how many positions are there in the read that will not impact alignment
+    #score?
+    distance_cutoff=1+(quality_array<20).sum()
+
+    #Align the read to each target sequence and  save the alignment score
+    alignment_scores=[]
+
+    #Align the read to all slices of the index returned by GetPotentialTargetSequences
+
+    aligned_subjs=[]
+    alignments=[]
+    min_k=20
+
+    for subject in subject_sequences:
+        new_alignments, min_k=AlignRead(read, subject, min_k,distance_cutoff )
+        alignments+=new_alignments
+
+    distances=numpy.array( [a.alignment['editDistance'] for a in alignments])
+
+    if alignments==[]: return 0, '*',(-1,-1),'*'
+
+    max_dist=max(distances)
+
+    exp_score=-1
+    best_score=-200
+    best_cigar=''
+    best_seq, best_loc='',0
+    best_alignment_subj=''
+
+    #Convert to base 1
+    best_left=0
+    #Convert to base 1 and make the bound open
+    best_right=0
+
+    mapq_curr=40
+    sorted_distances=numpy.argsort(distances)[::-1]
+    for i in sorted_distances:
+        alignment=alignments[i]
+        if alignment.alignment['editDistance']>max_dist:continue
+        if alignment.alignment['editDistance']==-1: continue
+
+        cigar_string=alignment.alignment['cigar']
+        alignment_score=CythonScore( cigar_string,qual, len(read))
+        alignment_scores.append(alignment_score)
+
+        subj_seq, subj_l, subj_r=ConvertAlignmentCoordinates(alignment,alignment.alignment['locations'][0], has_index)
+        if realign==False:
+            #MAPQ will be defined relative to the alignment reported by Bowtie2
+            print subj_seq, subj_l+1,subj_r+2, strand
+##            print exp_seq, exp_pos
+            if subj_seq==exp_seq and exp_pos<subj_r and subj_l<=exp_pos:
+
+                exp_score=alignment_score
+                best_cigar=cigar_string
+            else:
+                continue
+        if realign==True:
+            #MAPQ will be defined relative to the best realignment identified
+            if alignment_score>best_score:
+                if len(alignment_scores)>1:
+                    second_best=alignment_scores[ numpy.argsort(alignment_scores)[-2]]
+                    mapq_curr=second_best-alignment_score
+                exp_score=alignment_score
+                best_score=alignment_score
+                best_cigar=cigar_string
+                #Convert to base 1
+                best_left=subj_l
+
+                best_right=subj_r
+                best_seq=subj_seq
+                best_alignment_subj=alignment
+   ##    print time.clock()-start, 'Score time'
+        if exp_score!=-1:
+
+
+            if mapq_curr>-2.3 and alignment_score>-2.3:
+                break
+
+    if exp_score!=-1:
+        mapq=ComputeMapQ(alignment_scores,exp_score)
+    else:
+        mapq=0
+    #Realign the read with the Smith-Waterman algorithm
+    #The previous alignments are
+
+    best_cigar=EdlibToSamCigar(best_cigar)
+    cigar_string=best_cigar
+    if best_left!=exp_pos[0] or best_right!=exp_pos[1] or best_seq!=exp_seq\
+        or best_cigar!=exp_cigar: alignment_differs=True
+    else: alignment_differs=False
+    if realign==True and alignment_differs== True:
+        SSW=StripedSmithWaterman(read, gap_open_penalty=gap_open_penalty,gap_extend_penalty=gap_extend_penalty,match_score=match_score, mismatch_score=mismatch_score )
+        alignment=SSW(best_alignment_subj.subject)
+        cigar_string=alignment['cigar']
+        if alignment['query_begin']!=0:
+            cigar_string='{0}I'.format(alignment['query_begin'])+cigar_string
+        if alignment['query_end']!=len(read)-1:
+            cigar_string+='{0}I'.format(len(read)-alignment['query_end']-1)
+        best_seq, best_left, best_right=ConvertAlignmentCoordinates(best_alignment_subj, (alignment['target_begin'],alignment['target_end_optimal']), has_index)
+
+    return mapq, best_seq,( best_left,best_right),cigar_string
+
+def ComputeMapQ(alignment_scores, exp_score):
+    if len(alignment_scores)>1:
+        linear_probs= numpy.exp( alignment_scores)
+        very_small_probs=numpy.isnan(linear_probs)+numpy.isinf(linear_probs)
+        mapq=-4.34*numpy.log(1.-( numpy.exp( exp_score))/numpy.nansum( linear_probs[~very_small_probs]))*.33
+        mapq/=52.61444578/40.
+        if numpy.isnan(mapq) or numpy.isinf(mapq):
+            mapq=40
+    else:
+        mapq=40
+    return mapq
+
+def EdlibToSamCigar(cigar):
+    edit_count=0
+    edit_type=''
+    current_count=0
+    decimal_num=0
+    current_edit='M'
+    new_cigar=''
+    for char in cigar:
+        try:    #This is a number
+            digit=int(char)
+            edit_count*=10**decimal_num
+            edit_count+=digit
+            decimal_num+=1
+        except:
+            if char=='=':
+                current_edit='M'
+                current_count+=edit_count
+                edit_count=0
+                decimal_num=0
+            elif char=='X':
+                current_edit='M'
+                current_count+=edit_count
+                edit_count=0
+                decimal_num=0
+            else:
+                new_cigar+=str(current_count)+current_edit
+                new_cigar+=str(edit_count)+char
+                current_edit=char
+                edit_count=0
+                current_count=0
+                decimal_num=0
+    if current_count!=0:
+        new_cigar+=str(current_count)+current_edit
+    return new_cigar
 
 
 
+def GetPotentialTargetSequences(read, hash_index, Print=False):
+
+    read_length=len(read)
+    seeds=hash_index.decompose_read(read, .4)
 
 
+    pos=[]
+    start=time.clock()
+    seed_count=float( len(seeds[0])+1)
+
+    for i in range(len(seeds[0])):
+        try:  #If the seed is present in the reference
+            hit_pos= hash_index.fuzzy_location_dict[seeds[0][i]]
+        except:
+            hit_pos=hash_index.SearchNeighborDict(seeds[0][i])
+##            continue
+        pos+=hit_pos
+##        except:  #If it is absent
+##            continue
+
+##    print pos
+##    print time.clock()-start, 'Seed time'
+    if len(pos)==0: return []
+    pos=numpy.sort(pos)
+    if Print==True: print pos
+    singletons=FindSingletons(pos,len(read))
+    pos=pos[singletons]
+    split_indices=cython_extensions.ClusterByDistances(pos, 60)
+
+    grouped_positions=[]
+    diff=numpy.diff(split_indices)
+    if Print==True: print diff
+    size_set=sorted(diff)[::-1]
+##    max_size=numpy.max(diff)
+
+    if len(size_set)>2:
+        max_hit=min(seed_count,size_set[1] )
+##        print seed_count,size_set[1], max_hit
+        min_size=max(2,max( (max_hit-2,max_hit*.7)))
+##        print 2,max_hit-2,max_hit*.7, min_size
+    else:
+        max_hit=min(seed_count,numpy.max(diff) )
+##        print seed_count,numpy.max(diff), max_hit
+        min_size=max(2,max( (max_hit-2,max_hit*.6)))
+
+    accept_ind=numpy.where(diff>=min_size)[0]
 
 
+    subject_sequences=[]
+
+    for ind in accept_ind:
+        grouped_positions=pos[split_indices[ind]:split_indices[ind]+diff[ind]]
+        repeated_hits=len(grouped_positions)-len(set(grouped_positions))
+
+        magnitudes=numpy.abs( grouped_positions)
+        left,right=min(magnitudes), max(magnitudes)
+        hit_length=right+hash_index.k-left
+        unaligned_length=max(30, abs(read_length+40-hit_length))
+##        unaligned_length+=10*repeated_hits
+##        unaligned_length=70
+        strand=numpy.sign((left+right)/2.)
+        left=left-unaligned_length
+        right=right+unaligned_length+hash_index.k
+        if strand==1:
+            subject=hash_index.consensus_sequences[left:right]
+
+            if subject.count('N')>0:
+                non_N_ind_left=min(subject.find('A'), subject.find('C'), subject.find('G'), subject.find('T'))
+                left+=non_N_ind_left
+                subject=subject[non_N_ind_left:]
+                non_N_ind_right=subject.find('N')
+                right-=non_N_ind_right
+                subject=subject[:non_N_ind_right]
+
+        else: #Hit is on the reverse strand
+            subject=hash_index.consensus_sequences_complement[left:right]#.reverse_complement())
+            if subject.count('N')>0:
+                non_N_ind_left=min(subject.find('A'), subject.find('C'), subject.find('G'), subject.find('T'))
+                left+=non_N_ind_left
+                subject=subject[non_N_ind_left:]
+                non_N_ind_right=subject.find('N')
+                right-=non_N_ind_right
+                subject=subject[:non_N_ind_right]
+            subject=subject[::-1]
+        subject_sequences.append((left,right,subject, strand))
+
+    return subject_sequences
 
 def RemoveNs(subject):
     non_N_ind_left=min(subject.find('A'), subject.find('C'), subject.find('G'), subject.find('T'))
@@ -960,10 +1005,29 @@ def GetPotentialTargetSequences_svaed(read, hash_index):
     return subject_sequences
 
 
+def CythonScore(cigar, qual, read_len, phred=33):
+    cigar=cigar.encode('utf-8')
+    qual=qual.encode('utf-8')
+##    start=time.clock()
+    t=cython_extensions.ParseEdlibCigar(cigar)
+##    print time.clock()-start, "Parse"
+##    start=time.clock()
+    match_array=numpy.array( t[0])
+    mismatch_array=numpy.array( t[1], int)
+    length_penalty=read_len-len(match_array)-len(mismatch_array)
+##    print time.clock()-start, "Numpy"
+##    start=time.clock()
+    s=cython_extensions.ComputeAlignmentScore(qual,match_array ,mismatch_array, t[2], t[3], t[4])
+##    print time.clock()-start, "Score"
+    return s-2*length_penalty
 
 
+def FindSingletons(pos, cutoff=60):
+    test=abs(pos[1:]-pos[:-1])
 
+    test=numpy.concatenate(([1000], test, [1000]))
 
+    return numpy.minimum(test[1:], test[:-1])<cutoff
 
 def ClusterByDistances( posList, distance_cutoff=60 ):
     """Taking a list of read positions sorted by chromosome position as input,
@@ -1207,11 +1271,11 @@ def TestMapQ(infile, outfile, index):
         exp_pos_2=(float(row[8]),float(row[9]))
 
 
-        score1, best_seq_1, best_loc_1, best_cigar_1=index.ScoreRead(r1,q1,index, exp_seq, exp_pos,row[12],realign=True)
+        score1, best_seq_1, best_loc_1, best_cigar_1=ScoreRead(r1,q1,index, exp_seq, exp_pos,row[12],realign=True)
 ##        if best_cigar_1=='*':
 ##            alt_read=index.seq_dict[row[0]][int(exp_pos[0]):int(exp_pos[1])]
 ##            score1, best_seq_1, best_loc_1, best_cigar_1=ScoreRead(r1,q1,index, exp_seq, exp_pos,row[12],realign=True, alt_read=alt_read)
-        score2, best_seq_2, best_loc_2, best_cigar_2=index.ScoreRead(r2,q2,index, exp_seq_2, exp_pos_2,row[13],realign=True)
+        score2, best_seq_2, best_loc_2, best_cigar_2=ScoreRead(r2,q2,index, exp_seq_2, exp_pos_2,row[13],realign=True)
 ##        if best_cigar_2=='*':
 ##            alt_read=index.seq_dict[row[6]][int(exp_pos_2[0]):int(exp_pos_2[1])]
 ##            score2, best_seq_2, best_loc_2, best_cigar_2=ScoreRead(r2,q2,index, exp_seq_2, exp_pos_2,row[13],realign=True, alt_read=alt_read)
