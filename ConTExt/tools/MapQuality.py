@@ -19,7 +19,7 @@ import sklearn.neighbors
 from matplotlib import pyplot
 import seaborn
 from itertools import product
-
+import dict_trie
 try:
     import edlib
 
@@ -91,18 +91,26 @@ def UnambiguousFASTA(infile, outfile):
     outhandle.close()
 
 class HashedIndex():
-    def __init__(self, k=10,prefix_length=5, phred=33, phred_base=10.,method='BallTree'):
+    def __init__(self,prefix_length=5, phred=33, phred_base=10.,method='BallTree'):
         """Create a structure for fast KNN-searches of kmers in the set of consensus
     sequences"""
+        self.trie=dict_trie.Trie()
+        self.trie.fill(['A','T','G','C'], prefix_length)
+        product_iteration=product('ATGC',repeat= prefix_length)
+        self.all_prefixes=[''.join(p) for p in product_iteration ]
+        self.neighbor_dict={}
+        for prefix in self.all_prefixes:
+            self.neighbor_dict[prefix]=[kmer for kmer in self.trie.all_hamming(prefix, 1)]
         self.method=method
         self.phred=phred
         self.prefix_length=prefix_length
-        self.k=k
+        self.k=prefix_length*2
         self.distance_cutoff=60
         self.neighbors=10
         self.count=0
         self.phred_base=phred_base
         self.kmer_location_dict={}
+        self.fuzzy_location_dict={}
         self.phred_base=phred_base
 
     def BuildIndex(self, infile, full_index=False):
@@ -115,7 +123,7 @@ class HashedIndex():
         self.suffix_dictionary={}
 
         self.index_kmers(self.consensus_sequences, self.k)
-
+##        return()
         kmers=[K.upper() for K in self.kmer_location_dict]
 
         self.seed_query_time=0.
@@ -127,6 +135,7 @@ class HashedIndex():
         self.recall_hits_time=0.
         self.zip_time=0
         prefix_length=self.prefix_length
+        #Identify every kmer within one edit of a kmer within the
         for K in kmers:
             prefix=K[:prefix_length]
             try: self.prefix_dictionary[prefix].append( K[prefix_length:])
@@ -144,12 +153,7 @@ class HashedIndex():
         self.fuzzy_location_dict={}
         start=time.clock()
         #Add all kmers within 1-edit distance disallowing mismatches the in the prefix
-        if full_index==False:
-            kmer_iterator=self.kmer_location_dict.keys()
-        else: kmer_iterator=product('ATGC', repeat=self.k)
-        for kmer in kmer_iterator:
-            if full_index==True:
-                kmer=''.join(kmer)
+        for kmer in self.kmer_location_dict.keys():
             fuzzy_matches=self.GetHitsWithinHammingDistance(kmer)
             if self.fuzzy_location_dict.has_key(kmer)==False:
                 self.fuzzy_location_dict[kmer]=[]
@@ -157,23 +161,21 @@ class HashedIndex():
                 self.fuzzy_location_dict[kmer]+=self.kmer_location_dict[hit]
         del self.BallTrees_prefix
         self.BallTrees_suffix={}
+
         for suffix in self.suffix_dictionary:
             suffixed_kmers_as_vectors=[SequenceToInt(kmer) for kmer in self.suffix_dictionary[suffix]]
             self.BallTrees_suffix[suffix]=numpy.array( suffixed_kmers_as_vectors)
+
         #Add all kmers within 1-edit distance disallowing mismatches the in the suffix
-        if full_index==False:
-            kmer_iterator=self.kmer_location_dict.keys()
-        else: kmer_iterator=product('ATGC', repeat=self.k)
-        for kmer in kmer_iterator:
-            if full_index==True:
-                kmer=''.join(kmer)
+        for kmer in self.kmer_location_dict.keys():
             fuzzy_matches=self.GetHitsWithinHammingDistanceSuffix(kmer)
             if self.fuzzy_location_dict.has_key(kmer)==False:
                 self.fuzzy_location_dict[kmer]=[]
             for hit in fuzzy_matches:
                 if hit==kmer: continue
                 self.fuzzy_location_dict[kmer]+=self.kmer_location_dict[hit]
-        self.kmer_location_dict=self.fuzzy_location_dict
+
+##        self.kmer_location_dict=self.fuzzy_location_dict
         print time.clock()-start
 
 
@@ -192,6 +194,67 @@ class HashedIndex():
         matches=numpy.where( edit_distances<=1)[0]
         hits=[self.suffix_dictionary[query_suffix][i]+query_suffix for i in matches]
         return hits
+    def GetTrieMatches(self, query):
+
+        prefix=query[:self.prefix_length]
+        suffix=query[self.prefix_length:]
+        prefix_hits=self.trie.all_hamming(suffix, 1)
+        matches=[]
+        for hit in prefix_hits:
+            kmer=prefix+hit
+            matches.append(kmer)
+        suffix_hits=self.trie.all_hamming(prefix, 1)
+        for hit in suffix_hits:
+            kmer=hit+suffix
+            matches.append(kmer)
+        return matches
+
+    def SearchTrie(self,query):
+        prefix=query[:self.prefix_length]
+        suffix=query[self.prefix_length:]
+        prefix_hits=self.trie.all_hamming(suffix, 1)
+        pos=[]
+        for hit in prefix_hits:
+
+            kmer=prefix+hit
+
+            try:
+                pos+=self.kmer_location_dict[kmer]
+            except: continue
+        suffix_hits=self.trie.all_hamming(prefix, 1)
+        for hit in suffix_hits:
+            kmer=hit+suffix
+            try:
+                pos+=self.kmer_location_dict[kmer]
+            except: continue
+        return pos
+
+    def SearchNeighborDict(self,query):
+        prefix=query[:self.prefix_length]
+        suffix=query[self.prefix_length:]
+        pos=[]
+        try:
+            prefix_hits=self.neighbor_dict[suffix]
+
+            for hit in prefix_hits:
+
+                kmer=prefix+hit
+
+                try:
+                    pos+=self.kmer_location_dict[kmer]
+                except: continue
+        except:
+            pass
+        try:
+            suffix_hits=self.neighbor_dict[prefix]
+            for hit in suffix_hits:
+                kmer=hit+suffix
+                try:
+                    pos+=self.kmer_location_dict[kmer]
+                except: continue
+        except:
+            pass
+        return pos
 
 
     def query_read(self,read, seed_spacing=.8, qual=''):
@@ -434,7 +497,13 @@ def CleanKmerLocations(hi, cutoff=60):
 ##    return sorted_loc
         hi.kmer_location_dict[key]=list(numpy.array(sorted_loc)[good_seeds])
 
-
+        locations=hi.fuzzy_location_dict[key]
+        sorted_loc=sorted(locations)
+        diff=numpy.diff([min(locations)-1]+  sorted_loc)
+        good_seeds=diff>cutoff
+        good_seeds[1:]+=good_seeds[:-1]
+##    return sorted_loc
+        hi.fuzzy_location_dict[key]=list(numpy.array(sorted_loc)[good_seeds])
 
 def AlignRead(read, subject_sequence, k, distance_cutoff=4):
     min_k=k
@@ -701,29 +770,27 @@ def GetPotentialTargetSequences(read, hash_index, Print=False):
 
 
     pos=[]
-
+    start=time.clock()
     seed_count=float( len(seeds[0])+1)
 
     for i in range(len(seeds[0])):
         try:  #If the seed is present in the reference
-            hit_pos= hash_index.kmer_location_dict[seeds[0][i]]
-            pos+=hit_pos
-        except:  #If it is absent
-            continue
+            hit_pos= hash_index.fuzzy_location_dict[seeds[0][i]]
+        except:
+            hit_pos=hash_index.SearchNeighborDict(seeds[0][i])
+##            continue
+        pos+=hit_pos
+##        except:  #If it is absent
+##            continue
 
-
-
+##    print pos
+##    print time.clock()-start, 'Seed time'
     if len(pos)==0: return []
     pos=numpy.sort(pos)
     if Print==True: print pos
     singletons=FindSingletons(pos,len(read))
     pos=pos[singletons]
-
-
-
     split_indices=cython_extensions.ClusterByDistances(pos, 60)
-
-
 
     grouped_positions=[]
     diff=numpy.diff(split_indices)
@@ -976,6 +1043,7 @@ def ClusterByDistances( posList, distance_cutoff=60 ):
 ##        splitIndices=indices #Indices that will define cluster boundaries
     return indices
 def StoreIndex(index, outfile):
+    CleanKmerLocations(index)
     outhandle=open(outfile, 'w')
     outtable=csv.writer(outhandle, delimiter='\t')
     #Write the general parameters
@@ -994,7 +1062,8 @@ def StoreIndex(index, outfile):
     #Write the location dictionary
     for key in index.kmer_location_dict.keys():
         sorted_loc=sorted([str(k) for k in index.kmer_location_dict[key]])
-        row=['@d:{0}'.format(key), ','.join(sorted_loc)]
+        fuzzy_loc=set([str(k) for k in index.fuzzy_location_dict[key]])-set([str(k) for k in index.kmer_location_dict[key]])
+        row=['@d:{0}'.format(key), ','.join(sorted_loc),','.join(fuzzy_loc) ]
         outtable.writerow(row)
 
 
@@ -1041,10 +1110,19 @@ def LoadIndex(infile, index):
             if attribute=='prefix': index.prefix_length=int(value)
         if rtype=='@d': #Kmer dictionary
             key=attribute
-
-            values=[int(v) for v in row[1].split(',')]
+            try:
+                values=[int(v) for v in row[1].split(',')]
+            except:
+                values=[]
 
             index.kmer_location_dict[key]=values
+
+            fuzzy_values=values
+            try:
+                fuzzy_values+=[int(v) for v in row[2].split(',')]
+            except:
+                pass
+            index.fuzzy_location_dict[key]=values
         if rtype=='@C':#Consensus sequence
             sequence+=row[1]
         if rtype=='@Q':#Query informartion
@@ -1194,13 +1272,13 @@ def TestMapQ(infile, outfile, index):
 
 
         score1, best_seq_1, best_loc_1, best_cigar_1=ScoreRead(r1,q1,index, exp_seq, exp_pos,row[12],realign=True)
-        if best_cigar_1=='*':
-            alt_read=index.seq_dict[row[0]][int(exp_pos[0]):int(exp_pos[1])]
-            score1, best_seq_1, best_loc_1, best_cigar_1=ScoreRead(r1,q1,index, exp_seq, exp_pos,row[12],realign=True, alt_read=alt_read)
+##        if best_cigar_1=='*':
+##            alt_read=index.seq_dict[row[0]][int(exp_pos[0]):int(exp_pos[1])]
+##            score1, best_seq_1, best_loc_1, best_cigar_1=ScoreRead(r1,q1,index, exp_seq, exp_pos,row[12],realign=True, alt_read=alt_read)
         score2, best_seq_2, best_loc_2, best_cigar_2=ScoreRead(r2,q2,index, exp_seq_2, exp_pos_2,row[13],realign=True)
-        if best_cigar_2=='*':
-            alt_read=index.seq_dict[row[6]][int(exp_pos_2[0]):int(exp_pos_2[1])]
-            score2, best_seq_2, best_loc_2, best_cigar_2=ScoreRead(r2,q2,index, exp_seq_2, exp_pos_2,row[13],realign=True, alt_read=alt_read)
+##        if best_cigar_2=='*':
+##            alt_read=index.seq_dict[row[6]][int(exp_pos_2[0]):int(exp_pos_2[1])]
+##            score2, best_seq_2, best_loc_2, best_cigar_2=ScoreRead(r2,q2,index, exp_seq_2, exp_pos_2,row[13],realign=True, alt_read=alt_read)
         row=[int(row[2]),int(row[8]), score1, score2, float(row[14]), float(row[15]),row[1], row[4],r2, exp_seq, best_seq_1, exp_pos[0], exp_pos[1], best_loc_1[0], best_loc_1[1],row[12], best_cigar_1, exp_seq_2, best_seq_2, exp_pos_2[0], exp_pos_2[1], best_loc_2[0], best_loc_2[1],row[13], best_cigar_2]
         outtable.writerow(row)
 
@@ -1345,14 +1423,14 @@ def main(argv):
     print param
     if param=={}: return()
     if param.has_key('-build')==True:
-        hi=HashedIndex(int(param['-k']), int(param['-p']))
+        hi=HashedIndex( int(param['-p']))
         hi.BuildIndex(param['-build'], bool(param['-full']))
         StoreIndex(hi, param['-o'])
         return()
-    index=HashedIndex()
+    index=HashedIndex(6)
 
     LoadIndex(param['-ind'], index)
-    CleanKmerLocations(index)
+##    CleanKmerLocations(index)
     print len (index.consensus_sequences)
     print len(index.kmer_location_dict.keys())
     if param.has_key('-update'):
