@@ -25,4 +25,5 @@ Download the repository and run the setup.py script, which will check for and in
 ```
 python setup.py install
 ```
-
+## Contact:
+If you have questions about running the pipeline, setting up an analysis, interpreting the output, or run into issues, you can email me at: mpm289@cornell.edu
