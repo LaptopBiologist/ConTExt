@@ -422,17 +422,18 @@ class HashedIndex():
             name=self.name_list[hit_ind]
             hit_pos=pos-self.left[hit_ind]
         else:
-            l_min=numpy.min(abs( pos-self.left))
-            r_min=numpy.min(abs( pos-self.right))
-            if l_min<=r_min:
-                hit_ind=numpy.argmin(abs( pos-self.left))
-                name=self.name_list[hit_ind]
-                hit_pos=pos-self.left[hit_ind]
-            else:
-                hit_ind=numpy.argmin(abs( pos-self.right))
-                name=self.name_list[hit_ind]
-                hit_pos=self.right[hit_ind]-pos
-
+##            l_min=numpy.min(abs( pos-self.left))
+##            r_min=numpy.min(abs( pos-self.right))
+##            if l_min<=r_min:
+##                hit_ind=numpy.argmin(abs( pos-self.left))
+##                name=self.name_list[hit_ind]
+##                hit_pos=pos-self.left[hit_ind]
+##            else:
+##                hit_ind=numpy.argmin(abs( pos-self.right))
+##                name=self.name_list[hit_ind]
+##                hit_pos=self.right[hit_ind]-pos
+            name=''
+            hit_pos=-1
         if len(name)!=0:
             name=name[0]
             hit=hit_pos
@@ -508,6 +509,7 @@ def CleanKmerLocations(hi, cutoff=60):
 def AlignRead(read, subject_sequence, k, distance_cutoff=4):
     min_k=k
     l,r,subject,strand=subject_sequence
+    hit_length=r-l
 ##    print min_k, subject
 ##    print len(subject)
     if len(subject)==0:
@@ -524,12 +526,12 @@ def AlignRead(read, subject_sequence, k, distance_cutoff=4):
     if len(alignment['locations'])>1:
         second_hit_loc=alignment['locations'][1]
         l+=second_hit_loc[0]
-        r-=second_hit_loc[1]
+        r-= (hit_length- second_hit_loc[1])
         masked_sequence=subject[second_hit_loc[0]:second_hit_loc[1]]
         if len(masked_sequence)>0:
             alignment=edlib.align(read, masked_sequence, 'HW', 'path', k=min_k)
             if edit_distance>=0:
-                alignment_information=Alignment(alignment, subject, l, r, strand)
+                alignment_information=Alignment(alignment, masked_sequence, l, r, strand)
                 alignments.append(alignment_information)
 ##    except:
 ##        t=0
@@ -572,12 +574,12 @@ def ConvertAlignmentCoordinates(alignment, loc, hash_index ):
     align_l,align_r=loc
     r= alignment.subj_left+align_r
     l=align_l+ alignment.subj_left
+    mean_pos=(l+r)/2.
+    subj_seq= hash_index.QueryReference(mean_pos)[0]
 
-    subj_seq= hash_index.QueryReference(l)[0]
 
-
-    if subj_seq=='': subj_seq= hash_index.QueryReference(r)[0]
-    subj_l= hash_index.QueryReference(abs(l))[1]
+##    if subj_seq=='': subj_seq= hash_index.QueryReference(r)[0]
+    subj_l= hash_index.QueryReference(abs(mean_pos))[1]-(mean_pos-l)
 
     if subj_l==-1:subj_l=0
     subj_r=subj_l+align_r-align_l
@@ -592,8 +594,15 @@ def ConvertAlignmentCoordinates(alignment, loc, hash_index ):
     try:
         subj_r=subj_r[0]+2
     except: subj_r+=2
-    if subj_r==-1: subj_r=subj_l+200
+##    if subj_r==-1: subj_r=subj_l+200
     return subj_seq, subj_l, subj_r
+
+
+def Realign(inread, index, format_='ConTExt'):
+    if format_=='ConTExt':
+        pass
+    if format_=='SAM':
+        pass
 
 def ScoreRead(read, qual, has_index,exp_seq, exp_pos,exp_cigar, phred=33, realign=False, gap_open_penalty=8,gap_extend_penalty=3, match_score=4, mismatch_score=-6, alt_read=''):
     read=read.upper()
@@ -703,8 +712,14 @@ def ScoreRead(read, qual, has_index,exp_seq, exp_pos,exp_cigar, phred=33, realig
         or best_cigar!=exp_cigar: alignment_differs=True
     else: alignment_differs=False
     if realign==True and alignment_differs== True:
+        print best_alignment_subj.subj_left, best_alignment_subj.subj_right
+
         SSW=StripedSmithWaterman(read, gap_open_penalty=gap_open_penalty,gap_extend_penalty=gap_extend_penalty,match_score=match_score, mismatch_score=mismatch_score )
         alignment=SSW(best_alignment_subj.subject)
+        print (alignment['target_begin'],alignment['target_end_optimal']), 'Target'
+        print best_alignment_subj.alignment['locations'], 'Locations'
+        print (alignment['query_begin'],alignment['query_end']), "Query"
+
         cigar_string=alignment['cigar']
         if alignment['query_begin']!=0:
             cigar_string='{0}I'.format(alignment['query_begin'])+cigar_string
@@ -820,10 +835,10 @@ def GetPotentialTargetSequences(read, hash_index, Print=False):
         magnitudes=numpy.abs( grouped_positions)
         left,right=min(magnitudes), max(magnitudes)
         hit_length=right+hash_index.k-left
-        unaligned_length=max(30, abs(read_length+40-hit_length))
+        unaligned_length=max(30, abs(read_length+50-hit_length))
 ##        unaligned_length+=10*repeated_hits
 ##        unaligned_length=70
-        strand=numpy.sign((left+right)/2.)
+        strand=numpy.sign(numpy.mean(grouped_positions))
         left=left-unaligned_length
         right=right+unaligned_length+hash_index.k
         if strand==1:
