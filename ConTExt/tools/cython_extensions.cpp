@@ -832,6 +832,13 @@ static const char *__pyx_f[] = {
   "stringsource",
   "type.pxd",
 };
+/* NoFastGil.proto */
+#define __Pyx_PyGILState_Ensure PyGILState_Ensure
+#define __Pyx_PyGILState_Release PyGILState_Release
+#define __Pyx_FastGIL_Remember()
+#define __Pyx_FastGIL_Forget()
+#define __Pyx_FastGilFuncInit()
+
 /* MemviewSliceStruct.proto */
 struct __pyx_memoryview_obj;
 typedef struct {
@@ -896,13 +903,6 @@ typedef volatile __pyx_atomic_int_type __pyx_atomic_int;
 #ifndef __PYX_FORCE_INIT_THREADS
   #define __PYX_FORCE_INIT_THREADS 0
 #endif
-
-/* NoFastGil.proto */
-#define __Pyx_PyGILState_Ensure PyGILState_Ensure
-#define __Pyx_PyGILState_Release PyGILState_Release
-#define __Pyx_FastGIL_Remember()
-#define __Pyx_FastGIL_Forget()
-#define __Pyx_FastGilFuncInit()
 
 /* BufferFormatStructs.proto */
 #define IS_UNSIGNED(type) (((type) -1) > 0)
@@ -1130,12 +1130,12 @@ typedef npy_double __pyx_t_5numpy_double_t;
  */
 typedef npy_longdouble __pyx_t_5numpy_longdouble_t;
 
-/* "ConTExt/tools/cython_extensions.pyx":25
- * 
+/* "ConTExt/tools/cython_extensions.pyx":24
+ * import cython
  * cimport numpy
  * ctypedef numpy.int_t DTYPE_t             # <<<<<<<<<<<<<<
- * cdef list operations=['=','D','I','X']
  * 
+ * #@cython.boundscheck(False)
  */
 typedef __pyx_t_5numpy_int_t __pyx_t_7ConTExt_5tools_17cython_extensions_DTYPE_t;
 /* Declarations.proto */
@@ -1206,12 +1206,12 @@ typedef npy_clongdouble __pyx_t_5numpy_clongdouble_t;
 typedef npy_cdouble __pyx_t_5numpy_complex_t;
 struct __pyx_opt_args_7ConTExt_5tools_17cython_extensions_ComputeAlignmentScore;
 
-/* "ConTExt/tools/cython_extensions.pyx":34
+/* "ConTExt/tools/cython_extensions.pyx":29
  * 
  * @cython.boundscheck(False)
  * cpdef ComputeAlignmentScore(const unsigned char [:] quality_string, long[:] read_match_locations,long[:] read_mismatch_locations, long indels, long num_matches, long num_mismatches, double phred_base=33, double phred_scale= .23):             # <<<<<<<<<<<<<<
  * 
- * 	cdef:
+ *     cdef:
  */
 struct __pyx_opt_args_7ConTExt_5tools_17cython_extensions_ComputeAlignmentScore {
   int __pyx_n;
@@ -2124,7 +2124,6 @@ static PyTypeObject *__pyx_array_type = 0;
 static PyTypeObject *__pyx_MemviewEnum_type = 0;
 static PyTypeObject *__pyx_memoryview_type = 0;
 static PyTypeObject *__pyx_memoryviewslice_type = 0;
-static PyObject *__pyx_v_7ConTExt_5tools_17cython_extensions_operations = 0;
 static PyObject *generic = 0;
 static PyObject *strided = 0;
 static PyObject *indirect = 0;
@@ -2188,13 +2187,9 @@ static PyObject *__pyx_builtin_TypeError;
 static PyObject *__pyx_builtin_Ellipsis;
 static PyObject *__pyx_builtin_id;
 static PyObject *__pyx_builtin_IndexError;
-static const char __pyx_k_D[] = "D";
-static const char __pyx_k_I[] = "I";
 static const char __pyx_k_O[] = "O";
-static const char __pyx_k_X[] = "X";
 static const char __pyx_k_c[] = "c";
 static const char __pyx_k_id[] = "id";
-static const char __pyx_k__35[] = "=";
 static const char __pyx_k_new[] = "__new__";
 static const char __pyx_k_obj[] = "obj";
 static const char __pyx_k_base[] = "base";
@@ -2311,12 +2306,10 @@ static PyObject *__pyx_kp_s_Cannot_create_writable_memory_vi;
 static PyObject *__pyx_kp_s_Cannot_index_with_type_s;
 static PyObject *__pyx_kp_s_ConTExt_tools_cython_extensions;
 static PyObject *__pyx_n_s_ConTExt_tools_cython_extensions_2;
-static PyObject *__pyx_n_s_D;
 static PyObject *__pyx_n_s_Ellipsis;
 static PyObject *__pyx_kp_s_Empty_shape_tuple_for_cython_arr;
 static PyObject *__pyx_kp_u_Format_string_allocated_too_shor;
 static PyObject *__pyx_kp_u_Format_string_allocated_too_shor_2;
-static PyObject *__pyx_n_s_I;
 static PyObject *__pyx_n_s_ImportError;
 static PyObject *__pyx_kp_s_Incompatible_checksums_s_vs_0xb0;
 static PyObject *__pyx_n_s_IndexError;
@@ -2335,8 +2328,6 @@ static PyObject *__pyx_n_s_TypeError;
 static PyObject *__pyx_kp_s_Unable_to_convert_item_to_object;
 static PyObject *__pyx_n_s_ValueError;
 static PyObject *__pyx_n_s_View_MemoryView;
-static PyObject *__pyx_n_s_X;
-static PyObject *__pyx_kp_s__35;
 static PyObject *__pyx_n_s_allocate_buffer;
 static PyObject *__pyx_n_s_base;
 static PyObject *__pyx_n_s_c;
@@ -2511,22 +2502,22 @@ static PyObject *__pyx_tuple__28;
 static PyObject *__pyx_tuple__32;
 static PyObject *__pyx_tuple__33;
 static PyObject *__pyx_tuple__34;
+static PyObject *__pyx_tuple__36;
 static PyObject *__pyx_tuple__37;
 static PyObject *__pyx_tuple__38;
 static PyObject *__pyx_tuple__39;
 static PyObject *__pyx_tuple__40;
 static PyObject *__pyx_tuple__41;
-static PyObject *__pyx_tuple__42;
-static PyObject *__pyx_codeobj__36;
-static PyObject *__pyx_codeobj__43;
+static PyObject *__pyx_codeobj__35;
+static PyObject *__pyx_codeobj__42;
 /* Late includes */
 
-/* "ConTExt/tools/cython_extensions.pyx":34
+/* "ConTExt/tools/cython_extensions.pyx":29
  * 
  * @cython.boundscheck(False)
  * cpdef ComputeAlignmentScore(const unsigned char [:] quality_string, long[:] read_match_locations,long[:] read_mismatch_locations, long indels, long num_matches, long num_mismatches, double phred_base=33, double phred_scale= .23):             # <<<<<<<<<<<<<<
  * 
- * 	cdef:
+ *     cdef:
  */
 
 static PyObject *__pyx_pw_7ConTExt_5tools_17cython_extensions_1ComputeAlignmentScore(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
@@ -2557,137 +2548,172 @@ static PyObject *__pyx_f_7ConTExt_5tools_17cython_extensions_ComputeAlignmentSco
     }
   }
 
-  /* "ConTExt/tools/cython_extensions.pyx":37
+  /* "ConTExt/tools/cython_extensions.pyx":32
  * 
- * 	cdef:
- * 		int string_length=quality_string.shape[0]             # <<<<<<<<<<<<<<
- * 
- * 
+ *     cdef:
+ *         int string_length=quality_string.shape[0]             # <<<<<<<<<<<<<<
+ *         long match_pos
+ *         long mismatch_pos
  */
   __pyx_v_string_length = (__pyx_v_quality_string.shape[0]);
 
-  /* "ConTExt/tools/cython_extensions.pyx":45
- * 		long mismatch_pos
- * 		double prob
- * 		double score=0             # <<<<<<<<<<<<<<
- * 		double quality
+  /* "ConTExt/tools/cython_extensions.pyx":36
+ *         long mismatch_pos
+ *         double prob
+ *         double score=0             # <<<<<<<<<<<<<<
+ *         double quality
  * 
  */
   __pyx_v_score = 0.0;
 
-  /* "ConTExt/tools/cython_extensions.pyx":51
+  /* "ConTExt/tools/cython_extensions.pyx":42
  * 	#read_match_locations, read_mismatch_locations,indels, num_matches, num_mismatches=ParseEdlibCigarPython(cigar)
  * 	#Handle the matches
- * 	for match_pos in range(num_matches):             # <<<<<<<<<<<<<<
- * 		quality=quality_string[match_pos]
- * 		prob=exp( -1*(quality-phred_base)*phred_scale)
+ *     with nogil:             # <<<<<<<<<<<<<<
+ *         for match_pos in range(num_matches):
+ *             quality=quality_string[match_pos]
  */
-  __pyx_t_1 = __pyx_v_num_matches;
-  __pyx_t_2 = __pyx_t_1;
-  for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_2; __pyx_t_3+=1) {
-    __pyx_v_match_pos = __pyx_t_3;
+  {
+      #ifdef WITH_THREAD
+      PyThreadState *_save;
+      Py_UNBLOCK_THREADS
+      __Pyx_FastGIL_Remember();
+      #endif
+      /*try:*/ {
 
-    /* "ConTExt/tools/cython_extensions.pyx":52
+        /* "ConTExt/tools/cython_extensions.pyx":43
  * 	#Handle the matches
- * 	for match_pos in range(num_matches):
- * 		quality=quality_string[match_pos]             # <<<<<<<<<<<<<<
- * 		prob=exp( -1*(quality-phred_base)*phred_scale)
- * 		score+=log( 1-prob)
+ *     with nogil:
+ *         for match_pos in range(num_matches):             # <<<<<<<<<<<<<<
+ *             quality=quality_string[match_pos]
+ *             prob=exp( -1*(quality-phred_base)*phred_scale)
  */
-    __pyx_t_4 = __pyx_v_match_pos;
-    if (__pyx_t_4 < 0) __pyx_t_4 += __pyx_v_quality_string.shape[0];
-    __pyx_v_quality = (*((unsigned char const  *) ( /* dim=0 */ (__pyx_v_quality_string.data + __pyx_t_4 * __pyx_v_quality_string.strides[0]) )));
+        __pyx_t_1 = __pyx_v_num_matches;
+        __pyx_t_2 = __pyx_t_1;
+        for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_2; __pyx_t_3+=1) {
+          __pyx_v_match_pos = __pyx_t_3;
 
-    /* "ConTExt/tools/cython_extensions.pyx":53
- * 	for match_pos in range(num_matches):
- * 		quality=quality_string[match_pos]
- * 		prob=exp( -1*(quality-phred_base)*phred_scale)             # <<<<<<<<<<<<<<
- * 		score+=log( 1-prob)
- * 	#Handle the mismatches
+          /* "ConTExt/tools/cython_extensions.pyx":44
+ *     with nogil:
+ *         for match_pos in range(num_matches):
+ *             quality=quality_string[match_pos]             # <<<<<<<<<<<<<<
+ *             prob=exp( -1*(quality-phred_base)*phred_scale)
+ *             score+=log( 1-prob)
  */
-    __pyx_v_prob = exp(((-1.0 * (__pyx_v_quality - __pyx_v_phred_base)) * __pyx_v_phred_scale));
+          __pyx_t_4 = __pyx_v_match_pos;
+          if (__pyx_t_4 < 0) __pyx_t_4 += __pyx_v_quality_string.shape[0];
+          __pyx_v_quality = (*((unsigned char const  *) ( /* dim=0 */ (__pyx_v_quality_string.data + __pyx_t_4 * __pyx_v_quality_string.strides[0]) )));
 
-    /* "ConTExt/tools/cython_extensions.pyx":54
- * 		quality=quality_string[match_pos]
- * 		prob=exp( -1*(quality-phred_base)*phred_scale)
- * 		score+=log( 1-prob)             # <<<<<<<<<<<<<<
- * 	#Handle the mismatches
- * 	for mismatch_pos in range(num_mismatches):
+          /* "ConTExt/tools/cython_extensions.pyx":45
+ *         for match_pos in range(num_matches):
+ *             quality=quality_string[match_pos]
+ *             prob=exp( -1*(quality-phred_base)*phred_scale)             # <<<<<<<<<<<<<<
+ *             score+=log( 1-prob)
+ *     	#Handle the mismatches
  */
-    __pyx_v_score = (__pyx_v_score + log((1.0 - __pyx_v_prob)));
-  }
+          __pyx_v_prob = exp(((-1.0 * (__pyx_v_quality - __pyx_v_phred_base)) * __pyx_v_phred_scale));
 
-  /* "ConTExt/tools/cython_extensions.pyx":56
- * 		score+=log( 1-prob)
- * 	#Handle the mismatches
- * 	for mismatch_pos in range(num_mismatches):             # <<<<<<<<<<<<<<
- * 		quality_string[mismatch_pos]
- * 		prob=exp( -1*(quality-phred_base)*phred_scale)
+          /* "ConTExt/tools/cython_extensions.pyx":46
+ *             quality=quality_string[match_pos]
+ *             prob=exp( -1*(quality-phred_base)*phred_scale)
+ *             score+=log( 1-prob)             # <<<<<<<<<<<<<<
+ *     	#Handle the mismatches
+ *         for mismatch_pos in range(num_mismatches):
  */
-  __pyx_t_1 = __pyx_v_num_mismatches;
-  __pyx_t_2 = __pyx_t_1;
-  for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_2; __pyx_t_3+=1) {
-    __pyx_v_mismatch_pos = __pyx_t_3;
+          __pyx_v_score = (__pyx_v_score + log((1.0 - __pyx_v_prob)));
+        }
 
-    /* "ConTExt/tools/cython_extensions.pyx":57
- * 	#Handle the mismatches
- * 	for mismatch_pos in range(num_mismatches):
- * 		quality_string[mismatch_pos]             # <<<<<<<<<<<<<<
- * 		prob=exp( -1*(quality-phred_base)*phred_scale)
- * 		score+=log(prob/3.)
+        /* "ConTExt/tools/cython_extensions.pyx":48
+ *             score+=log( 1-prob)
+ *     	#Handle the mismatches
+ *         for mismatch_pos in range(num_mismatches):             # <<<<<<<<<<<<<<
+ *             quality_string[mismatch_pos]
+ *             prob=exp( -1*(quality-phred_base)*phred_scale)
  */
-    __pyx_t_5 = __pyx_v_mismatch_pos;
-    if (__pyx_t_5 < 0) __pyx_t_5 += __pyx_v_quality_string.shape[0];
-    (void)((*((unsigned char const  *) ( /* dim=0 */ (__pyx_v_quality_string.data + __pyx_t_5 * __pyx_v_quality_string.strides[0]) ))));
+        __pyx_t_1 = __pyx_v_num_mismatches;
+        __pyx_t_2 = __pyx_t_1;
+        for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_2; __pyx_t_3+=1) {
+          __pyx_v_mismatch_pos = __pyx_t_3;
 
-    /* "ConTExt/tools/cython_extensions.pyx":58
- * 	for mismatch_pos in range(num_mismatches):
- * 		quality_string[mismatch_pos]
- * 		prob=exp( -1*(quality-phred_base)*phred_scale)             # <<<<<<<<<<<<<<
- * 		score+=log(prob/3.)
- * 	score-=indels
+          /* "ConTExt/tools/cython_extensions.pyx":49
+ *     	#Handle the mismatches
+ *         for mismatch_pos in range(num_mismatches):
+ *             quality_string[mismatch_pos]             # <<<<<<<<<<<<<<
+ *             prob=exp( -1*(quality-phred_base)*phred_scale)
+ *             score+=log(prob/3.)
  */
-    __pyx_v_prob = exp(((-1.0 * (__pyx_v_quality - __pyx_v_phred_base)) * __pyx_v_phred_scale));
+          __pyx_t_5 = __pyx_v_mismatch_pos;
+          if (__pyx_t_5 < 0) __pyx_t_5 += __pyx_v_quality_string.shape[0];
+          (void)((*((unsigned char const  *) ( /* dim=0 */ (__pyx_v_quality_string.data + __pyx_t_5 * __pyx_v_quality_string.strides[0]) ))));
 
-    /* "ConTExt/tools/cython_extensions.pyx":59
- * 		quality_string[mismatch_pos]
- * 		prob=exp( -1*(quality-phred_base)*phred_scale)
- * 		score+=log(prob/3.)             # <<<<<<<<<<<<<<
- * 	score-=indels
+          /* "ConTExt/tools/cython_extensions.pyx":50
+ *         for mismatch_pos in range(num_mismatches):
+ *             quality_string[mismatch_pos]
+ *             prob=exp( -1*(quality-phred_base)*phred_scale)             # <<<<<<<<<<<<<<
+ *             score+=log(prob/3.)
+ *     score-=indels
+ */
+          __pyx_v_prob = exp(((-1.0 * (__pyx_v_quality - __pyx_v_phred_base)) * __pyx_v_phred_scale));
+
+          /* "ConTExt/tools/cython_extensions.pyx":51
+ *             quality_string[mismatch_pos]
+ *             prob=exp( -1*(quality-phred_base)*phred_scale)
+ *             score+=log(prob/3.)             # <<<<<<<<<<<<<<
+ *     score-=indels
  * 	#print score
  */
-    __pyx_v_score = (__pyx_v_score + log((__pyx_v_prob / 3.)));
+          __pyx_v_score = (__pyx_v_score + log((__pyx_v_prob / 3.)));
+        }
+      }
+
+      /* "ConTExt/tools/cython_extensions.pyx":42
+ * 	#read_match_locations, read_mismatch_locations,indels, num_matches, num_mismatches=ParseEdlibCigarPython(cigar)
+ * 	#Handle the matches
+ *     with nogil:             # <<<<<<<<<<<<<<
+ *         for match_pos in range(num_matches):
+ *             quality=quality_string[match_pos]
+ */
+      /*finally:*/ {
+        /*normal exit:*/{
+          #ifdef WITH_THREAD
+          __Pyx_FastGIL_Forget();
+          Py_BLOCK_THREADS
+          #endif
+          goto __pyx_L5;
+        }
+        __pyx_L5:;
+      }
   }
 
-  /* "ConTExt/tools/cython_extensions.pyx":60
- * 		prob=exp( -1*(quality-phred_base)*phred_scale)
- * 		score+=log(prob/3.)
- * 	score-=indels             # <<<<<<<<<<<<<<
+  /* "ConTExt/tools/cython_extensions.pyx":52
+ *             prob=exp( -1*(quality-phred_base)*phred_scale)
+ *             score+=log(prob/3.)
+ *     score-=indels             # <<<<<<<<<<<<<<
  * 	#print score
- * 	return score
+ *     return score
  */
   __pyx_v_score = (__pyx_v_score - __pyx_v_indels);
 
-  /* "ConTExt/tools/cython_extensions.pyx":62
- * 	score-=indels
+  /* "ConTExt/tools/cython_extensions.pyx":54
+ *     score-=indels
  * 	#print score
- * 	return score             # <<<<<<<<<<<<<<
+ *     return score             # <<<<<<<<<<<<<<
  * 
  * 
  */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_6 = PyFloat_FromDouble(__pyx_v_score); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 62, __pyx_L1_error)
+  __pyx_t_6 = PyFloat_FromDouble(__pyx_v_score); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 54, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __pyx_r = __pyx_t_6;
   __pyx_t_6 = 0;
   goto __pyx_L0;
 
-  /* "ConTExt/tools/cython_extensions.pyx":34
+  /* "ConTExt/tools/cython_extensions.pyx":29
  * 
  * @cython.boundscheck(False)
  * cpdef ComputeAlignmentScore(const unsigned char [:] quality_string, long[:] read_match_locations,long[:] read_mismatch_locations, long indels, long num_matches, long num_mismatches, double phred_base=33, double phred_scale= .23):             # <<<<<<<<<<<<<<
  * 
- * 	cdef:
+ *     cdef:
  */
 
   /* function exit code */
@@ -2750,31 +2776,31 @@ static PyObject *__pyx_pw_7ConTExt_5tools_17cython_extensions_1ComputeAlignmentS
         case  1:
         if (likely((values[1] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_read_match_locations)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("ComputeAlignmentScore", 0, 6, 8, 1); __PYX_ERR(0, 34, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("ComputeAlignmentScore", 0, 6, 8, 1); __PYX_ERR(0, 29, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  2:
         if (likely((values[2] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_read_mismatch_locations)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("ComputeAlignmentScore", 0, 6, 8, 2); __PYX_ERR(0, 34, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("ComputeAlignmentScore", 0, 6, 8, 2); __PYX_ERR(0, 29, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  3:
         if (likely((values[3] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_indels)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("ComputeAlignmentScore", 0, 6, 8, 3); __PYX_ERR(0, 34, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("ComputeAlignmentScore", 0, 6, 8, 3); __PYX_ERR(0, 29, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  4:
         if (likely((values[4] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_num_matches)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("ComputeAlignmentScore", 0, 6, 8, 4); __PYX_ERR(0, 34, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("ComputeAlignmentScore", 0, 6, 8, 4); __PYX_ERR(0, 29, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  5:
         if (likely((values[5] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_num_mismatches)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("ComputeAlignmentScore", 0, 6, 8, 5); __PYX_ERR(0, 34, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("ComputeAlignmentScore", 0, 6, 8, 5); __PYX_ERR(0, 29, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  6:
@@ -2790,7 +2816,7 @@ static PyObject *__pyx_pw_7ConTExt_5tools_17cython_extensions_1ComputeAlignmentS
         }
       }
       if (unlikely(kw_args > 0)) {
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "ComputeAlignmentScore") < 0)) __PYX_ERR(0, 34, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "ComputeAlignmentScore") < 0)) __PYX_ERR(0, 29, __pyx_L3_error)
       }
     } else {
       switch (PyTuple_GET_SIZE(__pyx_args)) {
@@ -2808,26 +2834,26 @@ static PyObject *__pyx_pw_7ConTExt_5tools_17cython_extensions_1ComputeAlignmentS
         default: goto __pyx_L5_argtuple_error;
       }
     }
-    __pyx_v_quality_string = __Pyx_PyObject_to_MemoryviewSlice_ds_unsigned_char__const__(values[0], 0); if (unlikely(!__pyx_v_quality_string.memview)) __PYX_ERR(0, 34, __pyx_L3_error)
-    __pyx_v_read_match_locations = __Pyx_PyObject_to_MemoryviewSlice_ds_long(values[1], PyBUF_WRITABLE); if (unlikely(!__pyx_v_read_match_locations.memview)) __PYX_ERR(0, 34, __pyx_L3_error)
-    __pyx_v_read_mismatch_locations = __Pyx_PyObject_to_MemoryviewSlice_ds_long(values[2], PyBUF_WRITABLE); if (unlikely(!__pyx_v_read_mismatch_locations.memview)) __PYX_ERR(0, 34, __pyx_L3_error)
-    __pyx_v_indels = __Pyx_PyInt_As_long(values[3]); if (unlikely((__pyx_v_indels == (long)-1) && PyErr_Occurred())) __PYX_ERR(0, 34, __pyx_L3_error)
-    __pyx_v_num_matches = __Pyx_PyInt_As_long(values[4]); if (unlikely((__pyx_v_num_matches == (long)-1) && PyErr_Occurred())) __PYX_ERR(0, 34, __pyx_L3_error)
-    __pyx_v_num_mismatches = __Pyx_PyInt_As_long(values[5]); if (unlikely((__pyx_v_num_mismatches == (long)-1) && PyErr_Occurred())) __PYX_ERR(0, 34, __pyx_L3_error)
+    __pyx_v_quality_string = __Pyx_PyObject_to_MemoryviewSlice_ds_unsigned_char__const__(values[0], 0); if (unlikely(!__pyx_v_quality_string.memview)) __PYX_ERR(0, 29, __pyx_L3_error)
+    __pyx_v_read_match_locations = __Pyx_PyObject_to_MemoryviewSlice_ds_long(values[1], PyBUF_WRITABLE); if (unlikely(!__pyx_v_read_match_locations.memview)) __PYX_ERR(0, 29, __pyx_L3_error)
+    __pyx_v_read_mismatch_locations = __Pyx_PyObject_to_MemoryviewSlice_ds_long(values[2], PyBUF_WRITABLE); if (unlikely(!__pyx_v_read_mismatch_locations.memview)) __PYX_ERR(0, 29, __pyx_L3_error)
+    __pyx_v_indels = __Pyx_PyInt_As_long(values[3]); if (unlikely((__pyx_v_indels == (long)-1) && PyErr_Occurred())) __PYX_ERR(0, 29, __pyx_L3_error)
+    __pyx_v_num_matches = __Pyx_PyInt_As_long(values[4]); if (unlikely((__pyx_v_num_matches == (long)-1) && PyErr_Occurred())) __PYX_ERR(0, 29, __pyx_L3_error)
+    __pyx_v_num_mismatches = __Pyx_PyInt_As_long(values[5]); if (unlikely((__pyx_v_num_mismatches == (long)-1) && PyErr_Occurred())) __PYX_ERR(0, 29, __pyx_L3_error)
     if (values[6]) {
-      __pyx_v_phred_base = __pyx_PyFloat_AsDouble(values[6]); if (unlikely((__pyx_v_phred_base == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 34, __pyx_L3_error)
+      __pyx_v_phred_base = __pyx_PyFloat_AsDouble(values[6]); if (unlikely((__pyx_v_phred_base == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 29, __pyx_L3_error)
     } else {
       __pyx_v_phred_base = ((double)33.0);
     }
     if (values[7]) {
-      __pyx_v_phred_scale = __pyx_PyFloat_AsDouble(values[7]); if (unlikely((__pyx_v_phred_scale == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 34, __pyx_L3_error)
+      __pyx_v_phred_scale = __pyx_PyFloat_AsDouble(values[7]); if (unlikely((__pyx_v_phred_scale == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 29, __pyx_L3_error)
     } else {
       __pyx_v_phred_scale = ((double).23);
     }
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("ComputeAlignmentScore", 0, 6, 8, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 34, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("ComputeAlignmentScore", 0, 6, 8, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 29, __pyx_L3_error)
   __pyx_L3_error:;
   __Pyx_AddTraceback("ConTExt.tools.cython_extensions.ComputeAlignmentScore", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
@@ -2847,13 +2873,13 @@ static PyObject *__pyx_pf_7ConTExt_5tools_17cython_extensions_ComputeAlignmentSc
   struct __pyx_opt_args_7ConTExt_5tools_17cython_extensions_ComputeAlignmentScore __pyx_t_2;
   __Pyx_RefNannySetupContext("ComputeAlignmentScore", 0);
   __Pyx_XDECREF(__pyx_r);
-  if (unlikely(!__pyx_v_quality_string.memview)) { __Pyx_RaiseUnboundLocalError("quality_string"); __PYX_ERR(0, 34, __pyx_L1_error) }
-  if (unlikely(!__pyx_v_read_match_locations.memview)) { __Pyx_RaiseUnboundLocalError("read_match_locations"); __PYX_ERR(0, 34, __pyx_L1_error) }
-  if (unlikely(!__pyx_v_read_mismatch_locations.memview)) { __Pyx_RaiseUnboundLocalError("read_mismatch_locations"); __PYX_ERR(0, 34, __pyx_L1_error) }
+  if (unlikely(!__pyx_v_quality_string.memview)) { __Pyx_RaiseUnboundLocalError("quality_string"); __PYX_ERR(0, 29, __pyx_L1_error) }
+  if (unlikely(!__pyx_v_read_match_locations.memview)) { __Pyx_RaiseUnboundLocalError("read_match_locations"); __PYX_ERR(0, 29, __pyx_L1_error) }
+  if (unlikely(!__pyx_v_read_mismatch_locations.memview)) { __Pyx_RaiseUnboundLocalError("read_mismatch_locations"); __PYX_ERR(0, 29, __pyx_L1_error) }
   __pyx_t_2.__pyx_n = 2;
   __pyx_t_2.phred_base = __pyx_v_phred_base;
   __pyx_t_2.phred_scale = __pyx_v_phred_scale;
-  __pyx_t_1 = __pyx_f_7ConTExt_5tools_17cython_extensions_ComputeAlignmentScore(__pyx_v_quality_string, __pyx_v_read_match_locations, __pyx_v_read_mismatch_locations, __pyx_v_indels, __pyx_v_num_matches, __pyx_v_num_mismatches, 0, &__pyx_t_2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 34, __pyx_L1_error)
+  __pyx_t_1 = __pyx_f_7ConTExt_5tools_17cython_extensions_ComputeAlignmentScore(__pyx_v_quality_string, __pyx_v_read_match_locations, __pyx_v_read_mismatch_locations, __pyx_v_indels, __pyx_v_num_matches, __pyx_v_num_mismatches, 0, &__pyx_t_2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 29, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -2873,12 +2899,12 @@ static PyObject *__pyx_pf_7ConTExt_5tools_17cython_extensions_ComputeAlignmentSc
   return __pyx_r;
 }
 
-/* "ConTExt/tools/cython_extensions.pyx":66
+/* "ConTExt/tools/cython_extensions.pyx":58
  * 
  * @cython.boundscheck(False)
  * cpdef ParseEdlibCigar(const unsigned char [:] cigar):             # <<<<<<<<<<<<<<
- * 	cdef:
- * 		vector[int] read_mismatch_locations
+ *     cdef:
+ *         vector[int] read_mismatch_locations
  */
 
 static PyObject *__pyx_pw_7ConTExt_5tools_17cython_extensions_3ParseEdlibCigar(PyObject *__pyx_self, PyObject *__pyx_arg_cigar); /*proto*/
@@ -2912,358 +2938,412 @@ static PyObject *__pyx_f_7ConTExt_5tools_17cython_extensions_ParseEdlibCigar(__P
   PyObject *__pyx_t_14 = NULL;
   __Pyx_RefNannySetupContext("ParseEdlibCigar", 0);
 
-  /* "ConTExt/tools/cython_extensions.pyx":71
- * 		vector[int] read_match_locations
- * 		char c
- * 		int read_pointer=0             # <<<<<<<<<<<<<<
- * 		int pos
- * 		int indel=0
+  /* "ConTExt/tools/cython_extensions.pyx":63
+ *         vector[int] read_match_locations
+ *         char c
+ *         int read_pointer=0             # <<<<<<<<<<<<<<
+ *         int pos
+ *         int indel=0
  */
   __pyx_v_read_pointer = 0;
 
-  /* "ConTExt/tools/cython_extensions.pyx":73
- * 		int read_pointer=0
- * 		int pos
- * 		int indel=0             # <<<<<<<<<<<<<<
- * 		int string_length=cigar.shape[0]
- * 		int number_of_edits
+  /* "ConTExt/tools/cython_extensions.pyx":65
+ *         int read_pointer=0
+ *         int pos
+ *         int indel=0             # <<<<<<<<<<<<<<
+ *         int string_length=cigar.shape[0]
+ *         int number_of_edits
  */
   __pyx_v_indel = 0;
 
-  /* "ConTExt/tools/cython_extensions.pyx":74
- * 		int pos
- * 		int indel=0
- * 		int string_length=cigar.shape[0]             # <<<<<<<<<<<<<<
- * 		int number_of_edits
- * 		int num_matches=0
+  /* "ConTExt/tools/cython_extensions.pyx":66
+ *         int pos
+ *         int indel=0
+ *         int string_length=cigar.shape[0]             # <<<<<<<<<<<<<<
+ *         int number_of_edits
+ *         int num_matches=0
  */
   __pyx_v_string_length = (__pyx_v_cigar.shape[0]);
 
-  /* "ConTExt/tools/cython_extensions.pyx":76
- * 		int string_length=cigar.shape[0]
- * 		int number_of_edits
- * 		int num_matches=0             # <<<<<<<<<<<<<<
- * 		int num_mismatches=0
+  /* "ConTExt/tools/cython_extensions.pyx":68
+ *         int string_length=cigar.shape[0]
+ *         int number_of_edits
+ *         int num_matches=0             # <<<<<<<<<<<<<<
+ *         int num_mismatches=0
  * 
  */
   __pyx_v_num_matches = 0;
 
-  /* "ConTExt/tools/cython_extensions.pyx":77
- * 		int number_of_edits
- * 		int num_matches=0
- * 		int num_mismatches=0             # <<<<<<<<<<<<<<
+  /* "ConTExt/tools/cython_extensions.pyx":69
+ *         int number_of_edits
+ *         int num_matches=0
+ *         int num_mismatches=0             # <<<<<<<<<<<<<<
  * 
- * 	number_of_edits=0
+ *     number_of_edits=0
  */
   __pyx_v_num_mismatches = 0;
 
-  /* "ConTExt/tools/cython_extensions.pyx":79
- * 		int num_mismatches=0
+  /* "ConTExt/tools/cython_extensions.pyx":71
+ *         int num_mismatches=0
  * 
- * 	number_of_edits=0             # <<<<<<<<<<<<<<
- * 	for current_index in xrange(string_length):
- * 		c=cigar[current_index]
+ *     number_of_edits=0             # <<<<<<<<<<<<<<
+ *     with nogil:
+ *         for current_index in xrange(string_length):
  */
   __pyx_v_number_of_edits = 0;
 
-  /* "ConTExt/tools/cython_extensions.pyx":80
+  /* "ConTExt/tools/cython_extensions.pyx":72
  * 
- * 	number_of_edits=0
- * 	for current_index in xrange(string_length):             # <<<<<<<<<<<<<<
- * 		c=cigar[current_index]
- * 		if c<61:  #This is a number, not an edit operation
+ *     number_of_edits=0
+ *     with nogil:             # <<<<<<<<<<<<<<
+ *         for current_index in xrange(string_length):
+ *             c=cigar[current_index]
  */
-  __pyx_t_1 = __pyx_v_string_length;
-  __pyx_t_2 = __pyx_t_1;
-  for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_2; __pyx_t_3+=1) {
-    __pyx_v_current_index = __pyx_t_3;
+  {
+      #ifdef WITH_THREAD
+      PyThreadState *_save;
+      Py_UNBLOCK_THREADS
+      __Pyx_FastGIL_Remember();
+      #endif
+      /*try:*/ {
 
-    /* "ConTExt/tools/cython_extensions.pyx":81
- * 	number_of_edits=0
- * 	for current_index in xrange(string_length):
- * 		c=cigar[current_index]             # <<<<<<<<<<<<<<
- * 		if c<61:  #This is a number, not an edit operation
- * 			#Update the number of edits for the upcoming operation
+        /* "ConTExt/tools/cython_extensions.pyx":73
+ *     number_of_edits=0
+ *     with nogil:
+ *         for current_index in xrange(string_length):             # <<<<<<<<<<<<<<
+ *             c=cigar[current_index]
+ *             if c<61:  #This is a number, not an edit operation
  */
-    __pyx_t_4 = __pyx_v_current_index;
-    if (__pyx_t_4 < 0) __pyx_t_4 += __pyx_v_cigar.shape[0];
-    __pyx_v_c = (*((unsigned char const  *) ( /* dim=0 */ (__pyx_v_cigar.data + __pyx_t_4 * __pyx_v_cigar.strides[0]) )));
+        __pyx_t_1 = __pyx_v_string_length;
+        __pyx_t_2 = __pyx_t_1;
+        for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_2; __pyx_t_3+=1) {
+          __pyx_v_current_index = __pyx_t_3;
 
-    /* "ConTExt/tools/cython_extensions.pyx":82
- * 	for current_index in xrange(string_length):
- * 		c=cigar[current_index]
- * 		if c<61:  #This is a number, not an edit operation             # <<<<<<<<<<<<<<
- * 			#Update the number of edits for the upcoming operation
- * 			number_of_edits*=10  #Each new number increments the digit place of number_of_edits
+          /* "ConTExt/tools/cython_extensions.pyx":74
+ *     with nogil:
+ *         for current_index in xrange(string_length):
+ *             c=cigar[current_index]             # <<<<<<<<<<<<<<
+ *             if c<61:  #This is a number, not an edit operation
+ *     		  #Update the number of edits for the upcoming operation
  */
-    __pyx_t_5 = ((__pyx_v_c < 61) != 0);
-    if (__pyx_t_5) {
+          __pyx_t_4 = __pyx_v_current_index;
+          if (__pyx_t_4 < 0) __pyx_t_4 += __pyx_v_cigar.shape[0];
+          __pyx_v_c = (*((unsigned char const  *) ( /* dim=0 */ (__pyx_v_cigar.data + __pyx_t_4 * __pyx_v_cigar.strides[0]) )));
 
-      /* "ConTExt/tools/cython_extensions.pyx":84
- * 		if c<61:  #This is a number, not an edit operation
- * 			#Update the number of edits for the upcoming operation
- * 			number_of_edits*=10  #Each new number increments the digit place of number_of_edits             # <<<<<<<<<<<<<<
- * 			number_of_edits+=c-48	#Characters are encoded as ASCII; zero is position 48
- * 			continue
+          /* "ConTExt/tools/cython_extensions.pyx":75
+ *         for current_index in xrange(string_length):
+ *             c=cigar[current_index]
+ *             if c<61:  #This is a number, not an edit operation             # <<<<<<<<<<<<<<
+ *     		  #Update the number of edits for the upcoming operation
+ *                 number_of_edits*=10  #Each new number increments the digit place of number_of_edits
  */
-      __pyx_v_number_of_edits = (__pyx_v_number_of_edits * 10);
+          __pyx_t_5 = ((__pyx_v_c < 61) != 0);
+          if (__pyx_t_5) {
 
-      /* "ConTExt/tools/cython_extensions.pyx":85
- * 			#Update the number of edits for the upcoming operation
- * 			number_of_edits*=10  #Each new number increments the digit place of number_of_edits
- * 			number_of_edits+=c-48	#Characters are encoded as ASCII; zero is position 48             # <<<<<<<<<<<<<<
- * 			continue
- * 		if c==61:  #"='
+            /* "ConTExt/tools/cython_extensions.pyx":77
+ *             if c<61:  #This is a number, not an edit operation
+ *     		  #Update the number of edits for the upcoming operation
+ *                 number_of_edits*=10  #Each new number increments the digit place of number_of_edits             # <<<<<<<<<<<<<<
+ *                 number_of_edits+=c-48	#Characters are encoded as ASCII; zero is position 48
+ *                 continue
  */
-      __pyx_v_number_of_edits = (__pyx_v_number_of_edits + (__pyx_v_c - 48));
+            __pyx_v_number_of_edits = (__pyx_v_number_of_edits * 10);
 
-      /* "ConTExt/tools/cython_extensions.pyx":86
- * 			number_of_edits*=10  #Each new number increments the digit place of number_of_edits
- * 			number_of_edits+=c-48	#Characters are encoded as ASCII; zero is position 48
- * 			continue             # <<<<<<<<<<<<<<
- * 		if c==61:  #"='
- * 			for pos in range(read_pointer,read_pointer+number_of_edits):
+            /* "ConTExt/tools/cython_extensions.pyx":78
+ *     		  #Update the number of edits for the upcoming operation
+ *                 number_of_edits*=10  #Each new number increments the digit place of number_of_edits
+ *                 number_of_edits+=c-48	#Characters are encoded as ASCII; zero is position 48             # <<<<<<<<<<<<<<
+ *                 continue
+ *             if c==61:  #"='
  */
-      goto __pyx_L3_continue;
+            __pyx_v_number_of_edits = (__pyx_v_number_of_edits + (__pyx_v_c - 48));
 
-      /* "ConTExt/tools/cython_extensions.pyx":82
- * 	for current_index in xrange(string_length):
- * 		c=cigar[current_index]
- * 		if c<61:  #This is a number, not an edit operation             # <<<<<<<<<<<<<<
- * 			#Update the number of edits for the upcoming operation
- * 			number_of_edits*=10  #Each new number increments the digit place of number_of_edits
+            /* "ConTExt/tools/cython_extensions.pyx":79
+ *                 number_of_edits*=10  #Each new number increments the digit place of number_of_edits
+ *                 number_of_edits+=c-48	#Characters are encoded as ASCII; zero is position 48
+ *                 continue             # <<<<<<<<<<<<<<
+ *             if c==61:  #"='
+ *                 for pos in range(read_pointer,read_pointer+number_of_edits):
  */
-    }
+            goto __pyx_L6_continue;
 
-    /* "ConTExt/tools/cython_extensions.pyx":87
- * 			number_of_edits+=c-48	#Characters are encoded as ASCII; zero is position 48
- * 			continue
- * 		if c==61:  #"='             # <<<<<<<<<<<<<<
- * 			for pos in range(read_pointer,read_pointer+number_of_edits):
- * 				read_match_locations.push_back(pos)
+            /* "ConTExt/tools/cython_extensions.pyx":75
+ *         for current_index in xrange(string_length):
+ *             c=cigar[current_index]
+ *             if c<61:  #This is a number, not an edit operation             # <<<<<<<<<<<<<<
+ *     		  #Update the number of edits for the upcoming operation
+ *                 number_of_edits*=10  #Each new number increments the digit place of number_of_edits
  */
-    __pyx_t_5 = ((__pyx_v_c == 61) != 0);
-    if (__pyx_t_5) {
+          }
 
-      /* "ConTExt/tools/cython_extensions.pyx":88
- * 			continue
- * 		if c==61:  #"='
- * 			for pos in range(read_pointer,read_pointer+number_of_edits):             # <<<<<<<<<<<<<<
- * 				read_match_locations.push_back(pos)
- * 				num_matches+=1
+          /* "ConTExt/tools/cython_extensions.pyx":80
+ *                 number_of_edits+=c-48	#Characters are encoded as ASCII; zero is position 48
+ *                 continue
+ *             if c==61:  #"='             # <<<<<<<<<<<<<<
+ *                 for pos in range(read_pointer,read_pointer+number_of_edits):
+ *                     read_match_locations.push_back(pos)
  */
-      __pyx_t_6 = (__pyx_v_read_pointer + __pyx_v_number_of_edits);
-      __pyx_t_7 = __pyx_t_6;
-      for (__pyx_t_8 = __pyx_v_read_pointer; __pyx_t_8 < __pyx_t_7; __pyx_t_8+=1) {
-        __pyx_v_pos = __pyx_t_8;
+          __pyx_t_5 = ((__pyx_v_c == 61) != 0);
+          if (__pyx_t_5) {
 
-        /* "ConTExt/tools/cython_extensions.pyx":89
- * 		if c==61:  #"='
- * 			for pos in range(read_pointer,read_pointer+number_of_edits):
- * 				read_match_locations.push_back(pos)             # <<<<<<<<<<<<<<
- * 				num_matches+=1
- * 			read_pointer+=number_of_edits
+            /* "ConTExt/tools/cython_extensions.pyx":81
+ *                 continue
+ *             if c==61:  #"='
+ *                 for pos in range(read_pointer,read_pointer+number_of_edits):             # <<<<<<<<<<<<<<
+ *                     read_match_locations.push_back(pos)
+ *                     num_matches+=1
  */
-        try {
-          __pyx_v_read_match_locations.push_back(__pyx_v_pos);
-        } catch(...) {
-          __Pyx_CppExn2PyErr();
-          __PYX_ERR(0, 89, __pyx_L1_error)
+            __pyx_t_6 = (__pyx_v_read_pointer + __pyx_v_number_of_edits);
+            __pyx_t_7 = __pyx_t_6;
+            for (__pyx_t_8 = __pyx_v_read_pointer; __pyx_t_8 < __pyx_t_7; __pyx_t_8+=1) {
+              __pyx_v_pos = __pyx_t_8;
+
+              /* "ConTExt/tools/cython_extensions.pyx":82
+ *             if c==61:  #"='
+ *                 for pos in range(read_pointer,read_pointer+number_of_edits):
+ *                     read_match_locations.push_back(pos)             # <<<<<<<<<<<<<<
+ *                     num_matches+=1
+ *                     read_pointer+=number_of_edits
+ */
+              try {
+                __pyx_v_read_match_locations.push_back(__pyx_v_pos);
+              } catch(...) {
+                #ifdef WITH_THREAD
+                PyGILState_STATE __pyx_gilstate_save = __Pyx_PyGILState_Ensure();
+                #endif
+                __Pyx_CppExn2PyErr();
+                #ifdef WITH_THREAD
+                __Pyx_PyGILState_Release(__pyx_gilstate_save);
+                #endif
+                __PYX_ERR(0, 82, __pyx_L4_error)
+              }
+
+              /* "ConTExt/tools/cython_extensions.pyx":83
+ *                 for pos in range(read_pointer,read_pointer+number_of_edits):
+ *                     read_match_locations.push_back(pos)
+ *                     num_matches+=1             # <<<<<<<<<<<<<<
+ *                     read_pointer+=number_of_edits
+ *             if c==88:
+ */
+              __pyx_v_num_matches = (__pyx_v_num_matches + 1);
+
+              /* "ConTExt/tools/cython_extensions.pyx":84
+ *                     read_match_locations.push_back(pos)
+ *                     num_matches+=1
+ *                     read_pointer+=number_of_edits             # <<<<<<<<<<<<<<
+ *             if c==88:
+ *                 for pos in range(read_pointer,read_pointer+number_of_edits):
+ */
+              __pyx_v_read_pointer = (__pyx_v_read_pointer + __pyx_v_number_of_edits);
+            }
+
+            /* "ConTExt/tools/cython_extensions.pyx":80
+ *                 number_of_edits+=c-48	#Characters are encoded as ASCII; zero is position 48
+ *                 continue
+ *             if c==61:  #"='             # <<<<<<<<<<<<<<
+ *                 for pos in range(read_pointer,read_pointer+number_of_edits):
+ *                     read_match_locations.push_back(pos)
+ */
+          }
+
+          /* "ConTExt/tools/cython_extensions.pyx":85
+ *                     num_matches+=1
+ *                     read_pointer+=number_of_edits
+ *             if c==88:             # <<<<<<<<<<<<<<
+ *                 for pos in range(read_pointer,read_pointer+number_of_edits):
+ *                     read_mismatch_locations.push_back(pos)
+ */
+          __pyx_t_5 = ((__pyx_v_c == 88) != 0);
+          if (__pyx_t_5) {
+
+            /* "ConTExt/tools/cython_extensions.pyx":86
+ *                     read_pointer+=number_of_edits
+ *             if c==88:
+ *                 for pos in range(read_pointer,read_pointer+number_of_edits):             # <<<<<<<<<<<<<<
+ *                     read_mismatch_locations.push_back(pos)
+ *                     num_mismatches+=1
+ */
+            __pyx_t_6 = (__pyx_v_read_pointer + __pyx_v_number_of_edits);
+            __pyx_t_7 = __pyx_t_6;
+            for (__pyx_t_8 = __pyx_v_read_pointer; __pyx_t_8 < __pyx_t_7; __pyx_t_8+=1) {
+              __pyx_v_pos = __pyx_t_8;
+
+              /* "ConTExt/tools/cython_extensions.pyx":87
+ *             if c==88:
+ *                 for pos in range(read_pointer,read_pointer+number_of_edits):
+ *                     read_mismatch_locations.push_back(pos)             # <<<<<<<<<<<<<<
+ *                     num_mismatches+=1
+ *                     read_pointer+=number_of_edits
+ */
+              try {
+                __pyx_v_read_mismatch_locations.push_back(__pyx_v_pos);
+              } catch(...) {
+                #ifdef WITH_THREAD
+                PyGILState_STATE __pyx_gilstate_save = __Pyx_PyGILState_Ensure();
+                #endif
+                __Pyx_CppExn2PyErr();
+                #ifdef WITH_THREAD
+                __Pyx_PyGILState_Release(__pyx_gilstate_save);
+                #endif
+                __PYX_ERR(0, 87, __pyx_L4_error)
+              }
+
+              /* "ConTExt/tools/cython_extensions.pyx":88
+ *                 for pos in range(read_pointer,read_pointer+number_of_edits):
+ *                     read_mismatch_locations.push_back(pos)
+ *                     num_mismatches+=1             # <<<<<<<<<<<<<<
+ *                     read_pointer+=number_of_edits
+ *             if c==73:
+ */
+              __pyx_v_num_mismatches = (__pyx_v_num_mismatches + 1);
+
+              /* "ConTExt/tools/cython_extensions.pyx":89
+ *                     read_mismatch_locations.push_back(pos)
+ *                     num_mismatches+=1
+ *                     read_pointer+=number_of_edits             # <<<<<<<<<<<<<<
+ *             if c==73:
+ *                 read_pointer+=number_of_edits
+ */
+              __pyx_v_read_pointer = (__pyx_v_read_pointer + __pyx_v_number_of_edits);
+            }
+
+            /* "ConTExt/tools/cython_extensions.pyx":85
+ *                     num_matches+=1
+ *                     read_pointer+=number_of_edits
+ *             if c==88:             # <<<<<<<<<<<<<<
+ *                 for pos in range(read_pointer,read_pointer+number_of_edits):
+ *                     read_mismatch_locations.push_back(pos)
+ */
+          }
+
+          /* "ConTExt/tools/cython_extensions.pyx":90
+ *                     num_mismatches+=1
+ *                     read_pointer+=number_of_edits
+ *             if c==73:             # <<<<<<<<<<<<<<
+ *                 read_pointer+=number_of_edits
+ *                 indel+=number_of_edits
+ */
+          __pyx_t_5 = ((__pyx_v_c == 73) != 0);
+          if (__pyx_t_5) {
+
+            /* "ConTExt/tools/cython_extensions.pyx":91
+ *                     read_pointer+=number_of_edits
+ *             if c==73:
+ *                 read_pointer+=number_of_edits             # <<<<<<<<<<<<<<
+ *                 indel+=number_of_edits
+ *             if c==68:
+ */
+            __pyx_v_read_pointer = (__pyx_v_read_pointer + __pyx_v_number_of_edits);
+
+            /* "ConTExt/tools/cython_extensions.pyx":92
+ *             if c==73:
+ *                 read_pointer+=number_of_edits
+ *                 indel+=number_of_edits             # <<<<<<<<<<<<<<
+ *             if c==68:
+ *                 indel+=number_of_edits
+ */
+            __pyx_v_indel = (__pyx_v_indel + __pyx_v_number_of_edits);
+
+            /* "ConTExt/tools/cython_extensions.pyx":90
+ *                     num_mismatches+=1
+ *                     read_pointer+=number_of_edits
+ *             if c==73:             # <<<<<<<<<<<<<<
+ *                 read_pointer+=number_of_edits
+ *                 indel+=number_of_edits
+ */
+          }
+
+          /* "ConTExt/tools/cython_extensions.pyx":93
+ *                 read_pointer+=number_of_edits
+ *                 indel+=number_of_edits
+ *             if c==68:             # <<<<<<<<<<<<<<
+ *                 indel+=number_of_edits
+ *             number_of_edits=0 	#Reset the number of_edits
+ */
+          __pyx_t_5 = ((__pyx_v_c == 68) != 0);
+          if (__pyx_t_5) {
+
+            /* "ConTExt/tools/cython_extensions.pyx":94
+ *                 indel+=number_of_edits
+ *             if c==68:
+ *                 indel+=number_of_edits             # <<<<<<<<<<<<<<
+ *             number_of_edits=0 	#Reset the number of_edits
+ *     return read_match_locations[:],read_mismatch_locations[:], indel, num_matches, num_mismatches
+ */
+            __pyx_v_indel = (__pyx_v_indel + __pyx_v_number_of_edits);
+
+            /* "ConTExt/tools/cython_extensions.pyx":93
+ *                 read_pointer+=number_of_edits
+ *                 indel+=number_of_edits
+ *             if c==68:             # <<<<<<<<<<<<<<
+ *                 indel+=number_of_edits
+ *             number_of_edits=0 	#Reset the number of_edits
+ */
+          }
+
+          /* "ConTExt/tools/cython_extensions.pyx":95
+ *             if c==68:
+ *                 indel+=number_of_edits
+ *             number_of_edits=0 	#Reset the number of_edits             # <<<<<<<<<<<<<<
+ *     return read_match_locations[:],read_mismatch_locations[:], indel, num_matches, num_mismatches
+ * 
+ */
+          __pyx_v_number_of_edits = 0;
+          __pyx_L6_continue:;
         }
-
-        /* "ConTExt/tools/cython_extensions.pyx":90
- * 			for pos in range(read_pointer,read_pointer+number_of_edits):
- * 				read_match_locations.push_back(pos)
- * 				num_matches+=1             # <<<<<<<<<<<<<<
- * 			read_pointer+=number_of_edits
- * 		if c==88:
- */
-        __pyx_v_num_matches = (__pyx_v_num_matches + 1);
       }
 
-      /* "ConTExt/tools/cython_extensions.pyx":91
- * 				read_match_locations.push_back(pos)
- * 				num_matches+=1
- * 			read_pointer+=number_of_edits             # <<<<<<<<<<<<<<
- * 		if c==88:
- * 			for pos in range(read_pointer,read_pointer+number_of_edits):
+      /* "ConTExt/tools/cython_extensions.pyx":72
+ * 
+ *     number_of_edits=0
+ *     with nogil:             # <<<<<<<<<<<<<<
+ *         for current_index in xrange(string_length):
+ *             c=cigar[current_index]
  */
-      __pyx_v_read_pointer = (__pyx_v_read_pointer + __pyx_v_number_of_edits);
-
-      /* "ConTExt/tools/cython_extensions.pyx":87
- * 			number_of_edits+=c-48	#Characters are encoded as ASCII; zero is position 48
- * 			continue
- * 		if c==61:  #"='             # <<<<<<<<<<<<<<
- * 			for pos in range(read_pointer,read_pointer+number_of_edits):
- * 				read_match_locations.push_back(pos)
- */
-    }
-
-    /* "ConTExt/tools/cython_extensions.pyx":92
- * 				num_matches+=1
- * 			read_pointer+=number_of_edits
- * 		if c==88:             # <<<<<<<<<<<<<<
- * 			for pos in range(read_pointer,read_pointer+number_of_edits):
- * 				read_mismatch_locations.push_back(pos)
- */
-    __pyx_t_5 = ((__pyx_v_c == 88) != 0);
-    if (__pyx_t_5) {
-
-      /* "ConTExt/tools/cython_extensions.pyx":93
- * 			read_pointer+=number_of_edits
- * 		if c==88:
- * 			for pos in range(read_pointer,read_pointer+number_of_edits):             # <<<<<<<<<<<<<<
- * 				read_mismatch_locations.push_back(pos)
- * 				num_mismatches+=1
- */
-      __pyx_t_6 = (__pyx_v_read_pointer + __pyx_v_number_of_edits);
-      __pyx_t_7 = __pyx_t_6;
-      for (__pyx_t_8 = __pyx_v_read_pointer; __pyx_t_8 < __pyx_t_7; __pyx_t_8+=1) {
-        __pyx_v_pos = __pyx_t_8;
-
-        /* "ConTExt/tools/cython_extensions.pyx":94
- * 		if c==88:
- * 			for pos in range(read_pointer,read_pointer+number_of_edits):
- * 				read_mismatch_locations.push_back(pos)             # <<<<<<<<<<<<<<
- * 				num_mismatches+=1
- * 			read_pointer+=number_of_edits
- */
-        try {
-          __pyx_v_read_mismatch_locations.push_back(__pyx_v_pos);
-        } catch(...) {
-          __Pyx_CppExn2PyErr();
-          __PYX_ERR(0, 94, __pyx_L1_error)
+      /*finally:*/ {
+        /*normal exit:*/{
+          #ifdef WITH_THREAD
+          __Pyx_FastGIL_Forget();
+          Py_BLOCK_THREADS
+          #endif
+          goto __pyx_L5;
         }
-
-        /* "ConTExt/tools/cython_extensions.pyx":95
- * 			for pos in range(read_pointer,read_pointer+number_of_edits):
- * 				read_mismatch_locations.push_back(pos)
- * 				num_mismatches+=1             # <<<<<<<<<<<<<<
- * 			read_pointer+=number_of_edits
- * 		if c==73:
- */
-        __pyx_v_num_mismatches = (__pyx_v_num_mismatches + 1);
+        __pyx_L4_error: {
+          #ifdef WITH_THREAD
+          __Pyx_FastGIL_Forget();
+          Py_BLOCK_THREADS
+          #endif
+          goto __pyx_L1_error;
+        }
+        __pyx_L5:;
       }
-
-      /* "ConTExt/tools/cython_extensions.pyx":96
- * 				read_mismatch_locations.push_back(pos)
- * 				num_mismatches+=1
- * 			read_pointer+=number_of_edits             # <<<<<<<<<<<<<<
- * 		if c==73:
- * 			read_pointer+=number_of_edits
- */
-      __pyx_v_read_pointer = (__pyx_v_read_pointer + __pyx_v_number_of_edits);
-
-      /* "ConTExt/tools/cython_extensions.pyx":92
- * 				num_matches+=1
- * 			read_pointer+=number_of_edits
- * 		if c==88:             # <<<<<<<<<<<<<<
- * 			for pos in range(read_pointer,read_pointer+number_of_edits):
- * 				read_mismatch_locations.push_back(pos)
- */
-    }
-
-    /* "ConTExt/tools/cython_extensions.pyx":97
- * 				num_mismatches+=1
- * 			read_pointer+=number_of_edits
- * 		if c==73:             # <<<<<<<<<<<<<<
- * 			read_pointer+=number_of_edits
- * 			indel+=number_of_edits
- */
-    __pyx_t_5 = ((__pyx_v_c == 73) != 0);
-    if (__pyx_t_5) {
-
-      /* "ConTExt/tools/cython_extensions.pyx":98
- * 			read_pointer+=number_of_edits
- * 		if c==73:
- * 			read_pointer+=number_of_edits             # <<<<<<<<<<<<<<
- * 			indel+=number_of_edits
- * 		if c==68:
- */
-      __pyx_v_read_pointer = (__pyx_v_read_pointer + __pyx_v_number_of_edits);
-
-      /* "ConTExt/tools/cython_extensions.pyx":99
- * 		if c==73:
- * 			read_pointer+=number_of_edits
- * 			indel+=number_of_edits             # <<<<<<<<<<<<<<
- * 		if c==68:
- * 			indel+=number_of_edits
- */
-      __pyx_v_indel = (__pyx_v_indel + __pyx_v_number_of_edits);
-
-      /* "ConTExt/tools/cython_extensions.pyx":97
- * 				num_mismatches+=1
- * 			read_pointer+=number_of_edits
- * 		if c==73:             # <<<<<<<<<<<<<<
- * 			read_pointer+=number_of_edits
- * 			indel+=number_of_edits
- */
-    }
-
-    /* "ConTExt/tools/cython_extensions.pyx":100
- * 			read_pointer+=number_of_edits
- * 			indel+=number_of_edits
- * 		if c==68:             # <<<<<<<<<<<<<<
- * 			indel+=number_of_edits
- * 		number_of_edits=0 	#Reset the number of_edits
- */
-    __pyx_t_5 = ((__pyx_v_c == 68) != 0);
-    if (__pyx_t_5) {
-
-      /* "ConTExt/tools/cython_extensions.pyx":101
- * 			indel+=number_of_edits
- * 		if c==68:
- * 			indel+=number_of_edits             # <<<<<<<<<<<<<<
- * 		number_of_edits=0 	#Reset the number of_edits
- * 
- */
-      __pyx_v_indel = (__pyx_v_indel + __pyx_v_number_of_edits);
-
-      /* "ConTExt/tools/cython_extensions.pyx":100
- * 			read_pointer+=number_of_edits
- * 			indel+=number_of_edits
- * 		if c==68:             # <<<<<<<<<<<<<<
- * 			indel+=number_of_edits
- * 		number_of_edits=0 	#Reset the number of_edits
- */
-    }
-
-    /* "ConTExt/tools/cython_extensions.pyx":102
- * 		if c==68:
- * 			indel+=number_of_edits
- * 		number_of_edits=0 	#Reset the number of_edits             # <<<<<<<<<<<<<<
- * 
- * 	return read_match_locations[:],read_mismatch_locations[:], indel, num_matches, num_mismatches
- */
-    __pyx_v_number_of_edits = 0;
-    __pyx_L3_continue:;
   }
 
-  /* "ConTExt/tools/cython_extensions.pyx":104
- * 		number_of_edits=0 	#Reset the number of_edits
- * 
- * 	return read_match_locations[:],read_mismatch_locations[:], indel, num_matches, num_mismatches             # <<<<<<<<<<<<<<
+  /* "ConTExt/tools/cython_extensions.pyx":96
+ *                 indel+=number_of_edits
+ *             number_of_edits=0 	#Reset the number of_edits
+ *     return read_match_locations[:],read_mismatch_locations[:], indel, num_matches, num_mismatches             # <<<<<<<<<<<<<<
  * 
  * @cython.boundscheck(False)
  */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_9 = __pyx_convert_vector_to_py_int(__pyx_v_read_match_locations); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 104, __pyx_L1_error)
+  __pyx_t_9 = __pyx_convert_vector_to_py_int(__pyx_v_read_match_locations); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 96, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_9);
-  __pyx_t_10 = __Pyx_PyObject_GetSlice(__pyx_t_9, 0, 0, NULL, NULL, &__pyx_slice_, 0, 0, 1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 104, __pyx_L1_error)
+  __pyx_t_10 = __Pyx_PyObject_GetSlice(__pyx_t_9, 0, 0, NULL, NULL, &__pyx_slice_, 0, 0, 1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 96, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
   __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-  __pyx_t_9 = __pyx_convert_vector_to_py_int(__pyx_v_read_mismatch_locations); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 104, __pyx_L1_error)
+  __pyx_t_9 = __pyx_convert_vector_to_py_int(__pyx_v_read_mismatch_locations); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 96, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_9);
-  __pyx_t_11 = __Pyx_PyObject_GetSlice(__pyx_t_9, 0, 0, NULL, NULL, &__pyx_slice__2, 0, 0, 1); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 104, __pyx_L1_error)
+  __pyx_t_11 = __Pyx_PyObject_GetSlice(__pyx_t_9, 0, 0, NULL, NULL, &__pyx_slice__2, 0, 0, 1); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 96, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_11);
   __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-  __pyx_t_9 = __Pyx_PyInt_From_int(__pyx_v_indel); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 104, __pyx_L1_error)
+  __pyx_t_9 = __Pyx_PyInt_From_int(__pyx_v_indel); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 96, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_9);
-  __pyx_t_12 = __Pyx_PyInt_From_int(__pyx_v_num_matches); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 104, __pyx_L1_error)
+  __pyx_t_12 = __Pyx_PyInt_From_int(__pyx_v_num_matches); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 96, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_12);
-  __pyx_t_13 = __Pyx_PyInt_From_int(__pyx_v_num_mismatches); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 104, __pyx_L1_error)
+  __pyx_t_13 = __Pyx_PyInt_From_int(__pyx_v_num_mismatches); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 96, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_13);
-  __pyx_t_14 = PyTuple_New(5); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 104, __pyx_L1_error)
+  __pyx_t_14 = PyTuple_New(5); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 96, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_14);
   __Pyx_GIVEREF(__pyx_t_10);
   PyTuple_SET_ITEM(__pyx_t_14, 0, __pyx_t_10);
@@ -3284,12 +3364,12 @@ static PyObject *__pyx_f_7ConTExt_5tools_17cython_extensions_ParseEdlibCigar(__P
   __pyx_t_14 = 0;
   goto __pyx_L0;
 
-  /* "ConTExt/tools/cython_extensions.pyx":66
+  /* "ConTExt/tools/cython_extensions.pyx":58
  * 
  * @cython.boundscheck(False)
  * cpdef ParseEdlibCigar(const unsigned char [:] cigar):             # <<<<<<<<<<<<<<
- * 	cdef:
- * 		vector[int] read_mismatch_locations
+ *     cdef:
+ *         vector[int] read_mismatch_locations
  */
 
   /* function exit code */
@@ -3316,7 +3396,7 @@ static PyObject *__pyx_pw_7ConTExt_5tools_17cython_extensions_3ParseEdlibCigar(P
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("ParseEdlibCigar (wrapper)", 0);
   assert(__pyx_arg_cigar); {
-    __pyx_v_cigar = __Pyx_PyObject_to_MemoryviewSlice_ds_unsigned_char__const__(__pyx_arg_cigar, 0); if (unlikely(!__pyx_v_cigar.memview)) __PYX_ERR(0, 66, __pyx_L3_error)
+    __pyx_v_cigar = __Pyx_PyObject_to_MemoryviewSlice_ds_unsigned_char__const__(__pyx_arg_cigar, 0); if (unlikely(!__pyx_v_cigar.memview)) __PYX_ERR(0, 58, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -3337,8 +3417,8 @@ static PyObject *__pyx_pf_7ConTExt_5tools_17cython_extensions_2ParseEdlibCigar(C
   PyObject *__pyx_t_1 = NULL;
   __Pyx_RefNannySetupContext("ParseEdlibCigar", 0);
   __Pyx_XDECREF(__pyx_r);
-  if (unlikely(!__pyx_v_cigar.memview)) { __Pyx_RaiseUnboundLocalError("cigar"); __PYX_ERR(0, 66, __pyx_L1_error) }
-  __pyx_t_1 = __pyx_f_7ConTExt_5tools_17cython_extensions_ParseEdlibCigar(__pyx_v_cigar, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 66, __pyx_L1_error)
+  if (unlikely(!__pyx_v_cigar.memview)) { __Pyx_RaiseUnboundLocalError("cigar"); __PYX_ERR(0, 58, __pyx_L1_error) }
+  __pyx_t_1 = __pyx_f_7ConTExt_5tools_17cython_extensions_ParseEdlibCigar(__pyx_v_cigar, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 58, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -3356,12 +3436,12 @@ static PyObject *__pyx_pf_7ConTExt_5tools_17cython_extensions_2ParseEdlibCigar(C
   return __pyx_r;
 }
 
-/* "ConTExt/tools/cython_extensions.pyx":107
+/* "ConTExt/tools/cython_extensions.pyx":99
  * 
  * @cython.boundscheck(False)
  * cpdef ClusterByDistances(long [:] pos_list, long cutoff):             # <<<<<<<<<<<<<<
- * 	cdef:
- * 		int	list_size=pos_list.shape[0]
+ *     cdef:
+ *         int	list_size=pos_list.shape[0]
  */
 
 static PyObject *__pyx_pw_7ConTExt_5tools_17cython_extensions_5ClusterByDistances(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
@@ -3382,47 +3462,47 @@ static PyObject *__pyx_f_7ConTExt_5tools_17cython_extensions_ClusterByDistances(
   PyObject *__pyx_t_8 = NULL;
   __Pyx_RefNannySetupContext("ClusterByDistances", 0);
 
-  /* "ConTExt/tools/cython_extensions.pyx":109
+  /* "ConTExt/tools/cython_extensions.pyx":101
  * cpdef ClusterByDistances(long [:] pos_list, long cutoff):
- * 	cdef:
- * 		int	list_size=pos_list.shape[0]             # <<<<<<<<<<<<<<
- * 		int i
- * 		long distance
+ *     cdef:
+ *         int	list_size=pos_list.shape[0]             # <<<<<<<<<<<<<<
+ *         int i
+ *         long distance
  */
   __pyx_v_list_size = (__pyx_v_pos_list.shape[0]);
 
-  /* "ConTExt/tools/cython_extensions.pyx":114
- * 		vector[int] split_indices
+  /* "ConTExt/tools/cython_extensions.pyx":106
+ *         vector[int] split_indices
  * 
- * 	split_indices.push_back(0)             # <<<<<<<<<<<<<<
- * 	for i in range(1, list_size):
- * 		distance=pos_list[i]-pos_list[i-1]
+ *     split_indices.push_back(0)             # <<<<<<<<<<<<<<
+ *     for i in range(1, list_size):
+ *         distance=pos_list[i]-pos_list[i-1]
  */
   try {
     __pyx_v_split_indices.push_back(0);
   } catch(...) {
     __Pyx_CppExn2PyErr();
-    __PYX_ERR(0, 114, __pyx_L1_error)
+    __PYX_ERR(0, 106, __pyx_L1_error)
   }
 
-  /* "ConTExt/tools/cython_extensions.pyx":115
+  /* "ConTExt/tools/cython_extensions.pyx":107
  * 
- * 	split_indices.push_back(0)
- * 	for i in range(1, list_size):             # <<<<<<<<<<<<<<
- * 		distance=pos_list[i]-pos_list[i-1]
- * 		if distance>cutoff:
+ *     split_indices.push_back(0)
+ *     for i in range(1, list_size):             # <<<<<<<<<<<<<<
+ *         distance=pos_list[i]-pos_list[i-1]
+ *         if distance>cutoff:
  */
   __pyx_t_1 = __pyx_v_list_size;
   __pyx_t_2 = __pyx_t_1;
   for (__pyx_t_3 = 1; __pyx_t_3 < __pyx_t_2; __pyx_t_3+=1) {
     __pyx_v_i = __pyx_t_3;
 
-    /* "ConTExt/tools/cython_extensions.pyx":116
- * 	split_indices.push_back(0)
- * 	for i in range(1, list_size):
- * 		distance=pos_list[i]-pos_list[i-1]             # <<<<<<<<<<<<<<
- * 		if distance>cutoff:
- * 			split_indices.push_back(i)
+    /* "ConTExt/tools/cython_extensions.pyx":108
+ *     split_indices.push_back(0)
+ *     for i in range(1, list_size):
+ *         distance=pos_list[i]-pos_list[i-1]             # <<<<<<<<<<<<<<
+ *         if distance>cutoff:
+ *             split_indices.push_back(i)
  */
     __pyx_t_4 = __pyx_v_i;
     if (__pyx_t_4 < 0) __pyx_t_4 += __pyx_v_pos_list.shape[0];
@@ -3430,77 +3510,77 @@ static PyObject *__pyx_f_7ConTExt_5tools_17cython_extensions_ClusterByDistances(
     if (__pyx_t_5 < 0) __pyx_t_5 += __pyx_v_pos_list.shape[0];
     __pyx_v_distance = ((*((long *) ( /* dim=0 */ (__pyx_v_pos_list.data + __pyx_t_4 * __pyx_v_pos_list.strides[0]) ))) - (*((long *) ( /* dim=0 */ (__pyx_v_pos_list.data + __pyx_t_5 * __pyx_v_pos_list.strides[0]) ))));
 
-    /* "ConTExt/tools/cython_extensions.pyx":117
- * 	for i in range(1, list_size):
- * 		distance=pos_list[i]-pos_list[i-1]
- * 		if distance>cutoff:             # <<<<<<<<<<<<<<
- * 			split_indices.push_back(i)
- * 	split_indices.push_back(list_size)
+    /* "ConTExt/tools/cython_extensions.pyx":109
+ *     for i in range(1, list_size):
+ *         distance=pos_list[i]-pos_list[i-1]
+ *         if distance>cutoff:             # <<<<<<<<<<<<<<
+ *             split_indices.push_back(i)
+ *     split_indices.push_back(list_size)
  */
     __pyx_t_6 = ((__pyx_v_distance > __pyx_v_cutoff) != 0);
     if (__pyx_t_6) {
 
-      /* "ConTExt/tools/cython_extensions.pyx":118
- * 		distance=pos_list[i]-pos_list[i-1]
- * 		if distance>cutoff:
- * 			split_indices.push_back(i)             # <<<<<<<<<<<<<<
- * 	split_indices.push_back(list_size)
- * 	return split_indices[:]
+      /* "ConTExt/tools/cython_extensions.pyx":110
+ *         distance=pos_list[i]-pos_list[i-1]
+ *         if distance>cutoff:
+ *             split_indices.push_back(i)             # <<<<<<<<<<<<<<
+ *     split_indices.push_back(list_size)
+ *     return split_indices[:]
  */
       try {
         __pyx_v_split_indices.push_back(__pyx_v_i);
       } catch(...) {
         __Pyx_CppExn2PyErr();
-        __PYX_ERR(0, 118, __pyx_L1_error)
+        __PYX_ERR(0, 110, __pyx_L1_error)
       }
 
-      /* "ConTExt/tools/cython_extensions.pyx":117
- * 	for i in range(1, list_size):
- * 		distance=pos_list[i]-pos_list[i-1]
- * 		if distance>cutoff:             # <<<<<<<<<<<<<<
- * 			split_indices.push_back(i)
- * 	split_indices.push_back(list_size)
+      /* "ConTExt/tools/cython_extensions.pyx":109
+ *     for i in range(1, list_size):
+ *         distance=pos_list[i]-pos_list[i-1]
+ *         if distance>cutoff:             # <<<<<<<<<<<<<<
+ *             split_indices.push_back(i)
+ *     split_indices.push_back(list_size)
  */
     }
   }
 
-  /* "ConTExt/tools/cython_extensions.pyx":119
- * 		if distance>cutoff:
- * 			split_indices.push_back(i)
- * 	split_indices.push_back(list_size)             # <<<<<<<<<<<<<<
- * 	return split_indices[:]
+  /* "ConTExt/tools/cython_extensions.pyx":111
+ *         if distance>cutoff:
+ *             split_indices.push_back(i)
+ *     split_indices.push_back(list_size)             # <<<<<<<<<<<<<<
+ *     return split_indices[:]
  * 
  */
   try {
     __pyx_v_split_indices.push_back(__pyx_v_list_size);
   } catch(...) {
     __Pyx_CppExn2PyErr();
-    __PYX_ERR(0, 119, __pyx_L1_error)
+    __PYX_ERR(0, 111, __pyx_L1_error)
   }
 
-  /* "ConTExt/tools/cython_extensions.pyx":120
- * 			split_indices.push_back(i)
- * 	split_indices.push_back(list_size)
- * 	return split_indices[:]             # <<<<<<<<<<<<<<
+  /* "ConTExt/tools/cython_extensions.pyx":112
+ *             split_indices.push_back(i)
+ *     split_indices.push_back(list_size)
+ *     return split_indices[:]             # <<<<<<<<<<<<<<
  * 
  * cpdef FindSingletons(long [:] pos_list, long cutoff):
  */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_7 = __pyx_convert_vector_to_py_int(__pyx_v_split_indices); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 120, __pyx_L1_error)
+  __pyx_t_7 = __pyx_convert_vector_to_py_int(__pyx_v_split_indices); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 112, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
-  __pyx_t_8 = __Pyx_PyObject_GetSlice(__pyx_t_7, 0, 0, NULL, NULL, &__pyx_slice__3, 0, 0, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 120, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_PyObject_GetSlice(__pyx_t_7, 0, 0, NULL, NULL, &__pyx_slice__3, 0, 0, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 112, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
   __pyx_r = __pyx_t_8;
   __pyx_t_8 = 0;
   goto __pyx_L0;
 
-  /* "ConTExt/tools/cython_extensions.pyx":107
+  /* "ConTExt/tools/cython_extensions.pyx":99
  * 
  * @cython.boundscheck(False)
  * cpdef ClusterByDistances(long [:] pos_list, long cutoff):             # <<<<<<<<<<<<<<
- * 	cdef:
- * 		int	list_size=pos_list.shape[0]
+ *     cdef:
+ *         int	list_size=pos_list.shape[0]
  */
 
   /* function exit code */
@@ -3546,11 +3626,11 @@ static PyObject *__pyx_pw_7ConTExt_5tools_17cython_extensions_5ClusterByDistance
         case  1:
         if (likely((values[1] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_cutoff)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("ClusterByDistances", 1, 2, 2, 1); __PYX_ERR(0, 107, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("ClusterByDistances", 1, 2, 2, 1); __PYX_ERR(0, 99, __pyx_L3_error)
         }
       }
       if (unlikely(kw_args > 0)) {
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "ClusterByDistances") < 0)) __PYX_ERR(0, 107, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "ClusterByDistances") < 0)) __PYX_ERR(0, 99, __pyx_L3_error)
       }
     } else if (PyTuple_GET_SIZE(__pyx_args) != 2) {
       goto __pyx_L5_argtuple_error;
@@ -3558,12 +3638,12 @@ static PyObject *__pyx_pw_7ConTExt_5tools_17cython_extensions_5ClusterByDistance
       values[0] = PyTuple_GET_ITEM(__pyx_args, 0);
       values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
     }
-    __pyx_v_pos_list = __Pyx_PyObject_to_MemoryviewSlice_ds_long(values[0], PyBUF_WRITABLE); if (unlikely(!__pyx_v_pos_list.memview)) __PYX_ERR(0, 107, __pyx_L3_error)
-    __pyx_v_cutoff = __Pyx_PyInt_As_long(values[1]); if (unlikely((__pyx_v_cutoff == (long)-1) && PyErr_Occurred())) __PYX_ERR(0, 107, __pyx_L3_error)
+    __pyx_v_pos_list = __Pyx_PyObject_to_MemoryviewSlice_ds_long(values[0], PyBUF_WRITABLE); if (unlikely(!__pyx_v_pos_list.memview)) __PYX_ERR(0, 99, __pyx_L3_error)
+    __pyx_v_cutoff = __Pyx_PyInt_As_long(values[1]); if (unlikely((__pyx_v_cutoff == (long)-1) && PyErr_Occurred())) __PYX_ERR(0, 99, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("ClusterByDistances", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 107, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("ClusterByDistances", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 99, __pyx_L3_error)
   __pyx_L3_error:;
   __Pyx_AddTraceback("ConTExt.tools.cython_extensions.ClusterByDistances", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
@@ -3582,8 +3662,8 @@ static PyObject *__pyx_pf_7ConTExt_5tools_17cython_extensions_4ClusterByDistance
   PyObject *__pyx_t_1 = NULL;
   __Pyx_RefNannySetupContext("ClusterByDistances", 0);
   __Pyx_XDECREF(__pyx_r);
-  if (unlikely(!__pyx_v_pos_list.memview)) { __Pyx_RaiseUnboundLocalError("pos_list"); __PYX_ERR(0, 107, __pyx_L1_error) }
-  __pyx_t_1 = __pyx_f_7ConTExt_5tools_17cython_extensions_ClusterByDistances(__pyx_v_pos_list, __pyx_v_cutoff, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 107, __pyx_L1_error)
+  if (unlikely(!__pyx_v_pos_list.memview)) { __Pyx_RaiseUnboundLocalError("pos_list"); __PYX_ERR(0, 99, __pyx_L1_error) }
+  __pyx_t_1 = __pyx_f_7ConTExt_5tools_17cython_extensions_ClusterByDistances(__pyx_v_pos_list, __pyx_v_cutoff, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 99, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -3601,12 +3681,12 @@ static PyObject *__pyx_pf_7ConTExt_5tools_17cython_extensions_4ClusterByDistance
   return __pyx_r;
 }
 
-/* "ConTExt/tools/cython_extensions.pyx":122
- * 	return split_indices[:]
+/* "ConTExt/tools/cython_extensions.pyx":114
+ *     return split_indices[:]
  * 
  * cpdef FindSingletons(long [:] pos_list, long cutoff):             # <<<<<<<<<<<<<<
- * 	cdef:
- * 		int	list_size=pos_list.shape[0]
+ *     cdef:
+ *         int	list_size=pos_list.shape[0]
  */
 
 static PyObject *__pyx_pw_7ConTExt_5tools_17cython_extensions_7FindSingletons(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
@@ -3628,47 +3708,47 @@ static PyObject *__pyx_f_7ConTExt_5tools_17cython_extensions_FindSingletons(__Py
   PyObject *__pyx_t_9 = NULL;
   __Pyx_RefNannySetupContext("FindSingletons", 0);
 
-  /* "ConTExt/tools/cython_extensions.pyx":124
+  /* "ConTExt/tools/cython_extensions.pyx":116
  * cpdef FindSingletons(long [:] pos_list, long cutoff):
- * 	cdef:
- * 		int	list_size=pos_list.shape[0]             # <<<<<<<<<<<<<<
- * 		int i
- * 		long distance
+ *     cdef:
+ *         int	list_size=pos_list.shape[0]             # <<<<<<<<<<<<<<
+ *         int i
+ *         long distance
  */
   __pyx_v_list_size = (__pyx_v_pos_list.shape[0]);
 
-  /* "ConTExt/tools/cython_extensions.pyx":129
- * 		vector[int] split_indices
+  /* "ConTExt/tools/cython_extensions.pyx":121
+ *         vector[int] split_indices
  * 
- * 	split_indices.push_back(0)             # <<<<<<<<<<<<<<
- * 	for i in range(1, list_size):
- * 		distance=pos_list[i]-pos_list[i-1]
+ *     split_indices.push_back(0)             # <<<<<<<<<<<<<<
+ *     for i in range(1, list_size):
+ *         distance=pos_list[i]-pos_list[i-1]
  */
   try {
     __pyx_v_split_indices.push_back(0);
   } catch(...) {
     __Pyx_CppExn2PyErr();
-    __PYX_ERR(0, 129, __pyx_L1_error)
+    __PYX_ERR(0, 121, __pyx_L1_error)
   }
 
-  /* "ConTExt/tools/cython_extensions.pyx":130
+  /* "ConTExt/tools/cython_extensions.pyx":122
  * 
- * 	split_indices.push_back(0)
- * 	for i in range(1, list_size):             # <<<<<<<<<<<<<<
- * 		distance=pos_list[i]-pos_list[i-1]
- * 		if distance>cutoff:
+ *     split_indices.push_back(0)
+ *     for i in range(1, list_size):             # <<<<<<<<<<<<<<
+ *         distance=pos_list[i]-pos_list[i-1]
+ *         if distance>cutoff:
  */
   __pyx_t_1 = __pyx_v_list_size;
   __pyx_t_2 = __pyx_t_1;
   for (__pyx_t_3 = 1; __pyx_t_3 < __pyx_t_2; __pyx_t_3+=1) {
     __pyx_v_i = __pyx_t_3;
 
-    /* "ConTExt/tools/cython_extensions.pyx":131
- * 	split_indices.push_back(0)
- * 	for i in range(1, list_size):
- * 		distance=pos_list[i]-pos_list[i-1]             # <<<<<<<<<<<<<<
- * 		if distance>cutoff:
- * 			split_indices.push_back(i)
+    /* "ConTExt/tools/cython_extensions.pyx":123
+ *     split_indices.push_back(0)
+ *     for i in range(1, list_size):
+ *         distance=pos_list[i]-pos_list[i-1]             # <<<<<<<<<<<<<<
+ *         if distance>cutoff:
+ *             split_indices.push_back(i)
  */
     __pyx_t_4 = __pyx_v_i;
     __pyx_t_5 = -1;
@@ -3678,7 +3758,7 @@ static PyObject *__pyx_f_7ConTExt_5tools_17cython_extensions_FindSingletons(__Py
     } else if (unlikely(__pyx_t_4 >= __pyx_v_pos_list.shape[0])) __pyx_t_5 = 0;
     if (unlikely(__pyx_t_5 != -1)) {
       __Pyx_RaiseBufferIndexError(__pyx_t_5);
-      __PYX_ERR(0, 131, __pyx_L1_error)
+      __PYX_ERR(0, 123, __pyx_L1_error)
     }
     __pyx_t_6 = (__pyx_v_i - 1);
     __pyx_t_5 = -1;
@@ -3688,81 +3768,81 @@ static PyObject *__pyx_f_7ConTExt_5tools_17cython_extensions_FindSingletons(__Py
     } else if (unlikely(__pyx_t_6 >= __pyx_v_pos_list.shape[0])) __pyx_t_5 = 0;
     if (unlikely(__pyx_t_5 != -1)) {
       __Pyx_RaiseBufferIndexError(__pyx_t_5);
-      __PYX_ERR(0, 131, __pyx_L1_error)
+      __PYX_ERR(0, 123, __pyx_L1_error)
     }
     __pyx_v_distance = ((*((long *) ( /* dim=0 */ (__pyx_v_pos_list.data + __pyx_t_4 * __pyx_v_pos_list.strides[0]) ))) - (*((long *) ( /* dim=0 */ (__pyx_v_pos_list.data + __pyx_t_6 * __pyx_v_pos_list.strides[0]) ))));
 
-    /* "ConTExt/tools/cython_extensions.pyx":132
- * 	for i in range(1, list_size):
- * 		distance=pos_list[i]-pos_list[i-1]
- * 		if distance>cutoff:             # <<<<<<<<<<<<<<
- * 			split_indices.push_back(i)
- * 	split_indices.push_back(list_size)
+    /* "ConTExt/tools/cython_extensions.pyx":124
+ *     for i in range(1, list_size):
+ *         distance=pos_list[i]-pos_list[i-1]
+ *         if distance>cutoff:             # <<<<<<<<<<<<<<
+ *             split_indices.push_back(i)
+ *     split_indices.push_back(list_size)
  */
     __pyx_t_7 = ((__pyx_v_distance > __pyx_v_cutoff) != 0);
     if (__pyx_t_7) {
 
-      /* "ConTExt/tools/cython_extensions.pyx":133
- * 		distance=pos_list[i]-pos_list[i-1]
- * 		if distance>cutoff:
- * 			split_indices.push_back(i)             # <<<<<<<<<<<<<<
- * 	split_indices.push_back(list_size)
- * 	return split_indices[:]
+      /* "ConTExt/tools/cython_extensions.pyx":125
+ *         distance=pos_list[i]-pos_list[i-1]
+ *         if distance>cutoff:
+ *             split_indices.push_back(i)             # <<<<<<<<<<<<<<
+ *     split_indices.push_back(list_size)
+ *     return split_indices[:]
  */
       try {
         __pyx_v_split_indices.push_back(__pyx_v_i);
       } catch(...) {
         __Pyx_CppExn2PyErr();
-        __PYX_ERR(0, 133, __pyx_L1_error)
+        __PYX_ERR(0, 125, __pyx_L1_error)
       }
 
-      /* "ConTExt/tools/cython_extensions.pyx":132
- * 	for i in range(1, list_size):
- * 		distance=pos_list[i]-pos_list[i-1]
- * 		if distance>cutoff:             # <<<<<<<<<<<<<<
- * 			split_indices.push_back(i)
- * 	split_indices.push_back(list_size)
+      /* "ConTExt/tools/cython_extensions.pyx":124
+ *     for i in range(1, list_size):
+ *         distance=pos_list[i]-pos_list[i-1]
+ *         if distance>cutoff:             # <<<<<<<<<<<<<<
+ *             split_indices.push_back(i)
+ *     split_indices.push_back(list_size)
  */
     }
   }
 
-  /* "ConTExt/tools/cython_extensions.pyx":134
- * 		if distance>cutoff:
- * 			split_indices.push_back(i)
- * 	split_indices.push_back(list_size)             # <<<<<<<<<<<<<<
- * 	return split_indices[:]
+  /* "ConTExt/tools/cython_extensions.pyx":126
+ *         if distance>cutoff:
+ *             split_indices.push_back(i)
+ *     split_indices.push_back(list_size)             # <<<<<<<<<<<<<<
+ *     return split_indices[:]
  * 
  */
   try {
     __pyx_v_split_indices.push_back(__pyx_v_list_size);
   } catch(...) {
     __Pyx_CppExn2PyErr();
-    __PYX_ERR(0, 134, __pyx_L1_error)
+    __PYX_ERR(0, 126, __pyx_L1_error)
   }
 
-  /* "ConTExt/tools/cython_extensions.pyx":135
- * 			split_indices.push_back(i)
- * 	split_indices.push_back(list_size)
- * 	return split_indices[:]             # <<<<<<<<<<<<<<
+  /* "ConTExt/tools/cython_extensions.pyx":127
+ *             split_indices.push_back(i)
+ *     split_indices.push_back(list_size)
+ *     return split_indices[:]             # <<<<<<<<<<<<<<
  * 
  * 
  */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_8 = __pyx_convert_vector_to_py_int(__pyx_v_split_indices); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 135, __pyx_L1_error)
+  __pyx_t_8 = __pyx_convert_vector_to_py_int(__pyx_v_split_indices); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 127, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
-  __pyx_t_9 = __Pyx_PyObject_GetSlice(__pyx_t_8, 0, 0, NULL, NULL, &__pyx_slice__4, 0, 0, 1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 135, __pyx_L1_error)
+  __pyx_t_9 = __Pyx_PyObject_GetSlice(__pyx_t_8, 0, 0, NULL, NULL, &__pyx_slice__4, 0, 0, 1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 127, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_9);
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
   __pyx_r = __pyx_t_9;
   __pyx_t_9 = 0;
   goto __pyx_L0;
 
-  /* "ConTExt/tools/cython_extensions.pyx":122
- * 	return split_indices[:]
+  /* "ConTExt/tools/cython_extensions.pyx":114
+ *     return split_indices[:]
  * 
  * cpdef FindSingletons(long [:] pos_list, long cutoff):             # <<<<<<<<<<<<<<
- * 	cdef:
- * 		int	list_size=pos_list.shape[0]
+ *     cdef:
+ *         int	list_size=pos_list.shape[0]
  */
 
   /* function exit code */
@@ -3808,11 +3888,11 @@ static PyObject *__pyx_pw_7ConTExt_5tools_17cython_extensions_7FindSingletons(Py
         case  1:
         if (likely((values[1] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_cutoff)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("FindSingletons", 1, 2, 2, 1); __PYX_ERR(0, 122, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("FindSingletons", 1, 2, 2, 1); __PYX_ERR(0, 114, __pyx_L3_error)
         }
       }
       if (unlikely(kw_args > 0)) {
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "FindSingletons") < 0)) __PYX_ERR(0, 122, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "FindSingletons") < 0)) __PYX_ERR(0, 114, __pyx_L3_error)
       }
     } else if (PyTuple_GET_SIZE(__pyx_args) != 2) {
       goto __pyx_L5_argtuple_error;
@@ -3820,12 +3900,12 @@ static PyObject *__pyx_pw_7ConTExt_5tools_17cython_extensions_7FindSingletons(Py
       values[0] = PyTuple_GET_ITEM(__pyx_args, 0);
       values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
     }
-    __pyx_v_pos_list = __Pyx_PyObject_to_MemoryviewSlice_ds_long(values[0], PyBUF_WRITABLE); if (unlikely(!__pyx_v_pos_list.memview)) __PYX_ERR(0, 122, __pyx_L3_error)
-    __pyx_v_cutoff = __Pyx_PyInt_As_long(values[1]); if (unlikely((__pyx_v_cutoff == (long)-1) && PyErr_Occurred())) __PYX_ERR(0, 122, __pyx_L3_error)
+    __pyx_v_pos_list = __Pyx_PyObject_to_MemoryviewSlice_ds_long(values[0], PyBUF_WRITABLE); if (unlikely(!__pyx_v_pos_list.memview)) __PYX_ERR(0, 114, __pyx_L3_error)
+    __pyx_v_cutoff = __Pyx_PyInt_As_long(values[1]); if (unlikely((__pyx_v_cutoff == (long)-1) && PyErr_Occurred())) __PYX_ERR(0, 114, __pyx_L3_error)
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("FindSingletons", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 122, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("FindSingletons", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 114, __pyx_L3_error)
   __pyx_L3_error:;
   __Pyx_AddTraceback("ConTExt.tools.cython_extensions.FindSingletons", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
@@ -3844,8 +3924,8 @@ static PyObject *__pyx_pf_7ConTExt_5tools_17cython_extensions_6FindSingletons(CY
   PyObject *__pyx_t_1 = NULL;
   __Pyx_RefNannySetupContext("FindSingletons", 0);
   __Pyx_XDECREF(__pyx_r);
-  if (unlikely(!__pyx_v_pos_list.memview)) { __Pyx_RaiseUnboundLocalError("pos_list"); __PYX_ERR(0, 122, __pyx_L1_error) }
-  __pyx_t_1 = __pyx_f_7ConTExt_5tools_17cython_extensions_FindSingletons(__pyx_v_pos_list, __pyx_v_cutoff, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 122, __pyx_L1_error)
+  if (unlikely(!__pyx_v_pos_list.memview)) { __Pyx_RaiseUnboundLocalError("pos_list"); __PYX_ERR(0, 114, __pyx_L1_error) }
+  __pyx_t_1 = __pyx_f_7ConTExt_5tools_17cython_extensions_FindSingletons(__pyx_v_pos_list, __pyx_v_cutoff, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 114, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -3863,11 +3943,11 @@ static PyObject *__pyx_pf_7ConTExt_5tools_17cython_extensions_6FindSingletons(CY
   return __pyx_r;
 }
 
-/* "ConTExt/tools/cython_extensions.pyx":139
+/* "ConTExt/tools/cython_extensions.pyx":131
  * 
  * 
  * def main():             # <<<<<<<<<<<<<<
- * 	pass
+ *     pass
  */
 
 /* Python wrapper */
@@ -20056,12 +20136,10 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_kp_s_Cannot_index_with_type_s, __pyx_k_Cannot_index_with_type_s, sizeof(__pyx_k_Cannot_index_with_type_s), 0, 0, 1, 0},
   {&__pyx_kp_s_ConTExt_tools_cython_extensions, __pyx_k_ConTExt_tools_cython_extensions, sizeof(__pyx_k_ConTExt_tools_cython_extensions), 0, 0, 1, 0},
   {&__pyx_n_s_ConTExt_tools_cython_extensions_2, __pyx_k_ConTExt_tools_cython_extensions_2, sizeof(__pyx_k_ConTExt_tools_cython_extensions_2), 0, 0, 1, 1},
-  {&__pyx_n_s_D, __pyx_k_D, sizeof(__pyx_k_D), 0, 0, 1, 1},
   {&__pyx_n_s_Ellipsis, __pyx_k_Ellipsis, sizeof(__pyx_k_Ellipsis), 0, 0, 1, 1},
   {&__pyx_kp_s_Empty_shape_tuple_for_cython_arr, __pyx_k_Empty_shape_tuple_for_cython_arr, sizeof(__pyx_k_Empty_shape_tuple_for_cython_arr), 0, 0, 1, 0},
   {&__pyx_kp_u_Format_string_allocated_too_shor, __pyx_k_Format_string_allocated_too_shor, sizeof(__pyx_k_Format_string_allocated_too_shor), 0, 1, 0, 0},
   {&__pyx_kp_u_Format_string_allocated_too_shor_2, __pyx_k_Format_string_allocated_too_shor_2, sizeof(__pyx_k_Format_string_allocated_too_shor_2), 0, 1, 0, 0},
-  {&__pyx_n_s_I, __pyx_k_I, sizeof(__pyx_k_I), 0, 0, 1, 1},
   {&__pyx_n_s_ImportError, __pyx_k_ImportError, sizeof(__pyx_k_ImportError), 0, 0, 1, 1},
   {&__pyx_kp_s_Incompatible_checksums_s_vs_0xb0, __pyx_k_Incompatible_checksums_s_vs_0xb0, sizeof(__pyx_k_Incompatible_checksums_s_vs_0xb0), 0, 0, 1, 0},
   {&__pyx_n_s_IndexError, __pyx_k_IndexError, sizeof(__pyx_k_IndexError), 0, 0, 1, 1},
@@ -20080,8 +20158,6 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_kp_s_Unable_to_convert_item_to_object, __pyx_k_Unable_to_convert_item_to_object, sizeof(__pyx_k_Unable_to_convert_item_to_object), 0, 0, 1, 0},
   {&__pyx_n_s_ValueError, __pyx_k_ValueError, sizeof(__pyx_k_ValueError), 0, 0, 1, 1},
   {&__pyx_n_s_View_MemoryView, __pyx_k_View_MemoryView, sizeof(__pyx_k_View_MemoryView), 0, 0, 1, 1},
-  {&__pyx_n_s_X, __pyx_k_X, sizeof(__pyx_k_X), 0, 0, 1, 1},
-  {&__pyx_kp_s__35, __pyx_k__35, sizeof(__pyx_k__35), 0, 0, 1, 0},
   {&__pyx_n_s_allocate_buffer, __pyx_k_allocate_buffer, sizeof(__pyx_k_allocate_buffer), 0, 0, 1, 1},
   {&__pyx_n_s_base, __pyx_k_base, sizeof(__pyx_k_base), 0, 0, 1, 1},
   {&__pyx_n_s_c, __pyx_k_c, sizeof(__pyx_k_c), 0, 0, 1, 1},
@@ -20168,11 +20244,11 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {0, 0, 0, 0, 0, 0, 0}
 };
 static int __Pyx_InitCachedBuiltins(void) {
-  __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_range) __PYX_ERR(0, 51, __pyx_L1_error)
+  __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_range) __PYX_ERR(0, 43, __pyx_L1_error)
   #if PY_MAJOR_VERSION >= 3
-  __pyx_builtin_xrange = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_xrange) __PYX_ERR(0, 80, __pyx_L1_error)
+  __pyx_builtin_xrange = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_xrange) __PYX_ERR(0, 73, __pyx_L1_error)
   #else
-  __pyx_builtin_xrange = __Pyx_GetBuiltinName(__pyx_n_s_xrange); if (!__pyx_builtin_xrange) __PYX_ERR(0, 80, __pyx_L1_error)
+  __pyx_builtin_xrange = __Pyx_GetBuiltinName(__pyx_n_s_xrange); if (!__pyx_builtin_xrange) __PYX_ERR(0, 73, __pyx_L1_error)
   #endif
   __pyx_builtin_ValueError = __Pyx_GetBuiltinName(__pyx_n_s_ValueError); if (!__pyx_builtin_ValueError) __PYX_ERR(1, 229, __pyx_L1_error)
   __pyx_builtin_RuntimeError = __Pyx_GetBuiltinName(__pyx_n_s_RuntimeError); if (!__pyx_builtin_RuntimeError) __PYX_ERR(1, 810, __pyx_L1_error)
@@ -20192,39 +20268,39 @@ static int __Pyx_InitCachedConstants(void) {
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__Pyx_InitCachedConstants", 0);
 
-  /* "ConTExt/tools/cython_extensions.pyx":104
- * 		number_of_edits=0 	#Reset the number of_edits
- * 
- * 	return read_match_locations[:],read_mismatch_locations[:], indel, num_matches, num_mismatches             # <<<<<<<<<<<<<<
+  /* "ConTExt/tools/cython_extensions.pyx":96
+ *                 indel+=number_of_edits
+ *             number_of_edits=0 	#Reset the number of_edits
+ *     return read_match_locations[:],read_mismatch_locations[:], indel, num_matches, num_mismatches             # <<<<<<<<<<<<<<
  * 
  * @cython.boundscheck(False)
  */
-  __pyx_slice_ = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice_)) __PYX_ERR(0, 104, __pyx_L1_error)
+  __pyx_slice_ = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice_)) __PYX_ERR(0, 96, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_slice_);
   __Pyx_GIVEREF(__pyx_slice_);
-  __pyx_slice__2 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__2)) __PYX_ERR(0, 104, __pyx_L1_error)
+  __pyx_slice__2 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__2)) __PYX_ERR(0, 96, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_slice__2);
   __Pyx_GIVEREF(__pyx_slice__2);
 
-  /* "ConTExt/tools/cython_extensions.pyx":120
- * 			split_indices.push_back(i)
- * 	split_indices.push_back(list_size)
- * 	return split_indices[:]             # <<<<<<<<<<<<<<
+  /* "ConTExt/tools/cython_extensions.pyx":112
+ *             split_indices.push_back(i)
+ *     split_indices.push_back(list_size)
+ *     return split_indices[:]             # <<<<<<<<<<<<<<
  * 
  * cpdef FindSingletons(long [:] pos_list, long cutoff):
  */
-  __pyx_slice__3 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__3)) __PYX_ERR(0, 120, __pyx_L1_error)
+  __pyx_slice__3 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__3)) __PYX_ERR(0, 112, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_slice__3);
   __Pyx_GIVEREF(__pyx_slice__3);
 
-  /* "ConTExt/tools/cython_extensions.pyx":135
- * 			split_indices.push_back(i)
- * 	split_indices.push_back(list_size)
- * 	return split_indices[:]             # <<<<<<<<<<<<<<
+  /* "ConTExt/tools/cython_extensions.pyx":127
+ *             split_indices.push_back(i)
+ *     split_indices.push_back(list_size)
+ *     return split_indices[:]             # <<<<<<<<<<<<<<
  * 
  * 
  */
-  __pyx_slice__4 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__4)) __PYX_ERR(0, 135, __pyx_L1_error)
+  __pyx_slice__4 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__4)) __PYX_ERR(0, 127, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_slice__4);
   __Pyx_GIVEREF(__pyx_slice__4);
 
@@ -20550,13 +20626,13 @@ static int __Pyx_InitCachedConstants(void) {
   __Pyx_GOTREF(__pyx_tuple__34);
   __Pyx_GIVEREF(__pyx_tuple__34);
 
-  /* "ConTExt/tools/cython_extensions.pyx":139
+  /* "ConTExt/tools/cython_extensions.pyx":131
  * 
  * 
  * def main():             # <<<<<<<<<<<<<<
- * 	pass
+ *     pass
  */
-  __pyx_codeobj__36 = (PyObject*)__Pyx_PyCode_New(0, 0, 0, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ConTExt_tools_cython_extensions, __pyx_n_s_main_2, 139, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__36)) __PYX_ERR(0, 139, __pyx_L1_error)
+  __pyx_codeobj__35 = (PyObject*)__Pyx_PyCode_New(0, 0, 0, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_ConTExt_tools_cython_extensions, __pyx_n_s_main_2, 131, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__35)) __PYX_ERR(0, 131, __pyx_L1_error)
 
   /* "View.MemoryView":285
  *         return self.name
@@ -20565,9 +20641,9 @@ static int __Pyx_InitCachedConstants(void) {
  * cdef strided = Enum("<strided and direct>") # default
  * cdef indirect = Enum("<strided and indirect>")
  */
-  __pyx_tuple__37 = PyTuple_Pack(1, __pyx_kp_s_strided_and_direct_or_indirect); if (unlikely(!__pyx_tuple__37)) __PYX_ERR(2, 285, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_tuple__37);
-  __Pyx_GIVEREF(__pyx_tuple__37);
+  __pyx_tuple__36 = PyTuple_Pack(1, __pyx_kp_s_strided_and_direct_or_indirect); if (unlikely(!__pyx_tuple__36)) __PYX_ERR(2, 285, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_tuple__36);
+  __Pyx_GIVEREF(__pyx_tuple__36);
 
   /* "View.MemoryView":286
  * 
@@ -20576,9 +20652,9 @@ static int __Pyx_InitCachedConstants(void) {
  * cdef indirect = Enum("<strided and indirect>")
  * 
  */
-  __pyx_tuple__38 = PyTuple_Pack(1, __pyx_kp_s_strided_and_direct); if (unlikely(!__pyx_tuple__38)) __PYX_ERR(2, 286, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_tuple__38);
-  __Pyx_GIVEREF(__pyx_tuple__38);
+  __pyx_tuple__37 = PyTuple_Pack(1, __pyx_kp_s_strided_and_direct); if (unlikely(!__pyx_tuple__37)) __PYX_ERR(2, 286, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_tuple__37);
+  __Pyx_GIVEREF(__pyx_tuple__37);
 
   /* "View.MemoryView":287
  * cdef generic = Enum("<strided and direct or indirect>")
@@ -20587,9 +20663,9 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  * 
  */
-  __pyx_tuple__39 = PyTuple_Pack(1, __pyx_kp_s_strided_and_indirect); if (unlikely(!__pyx_tuple__39)) __PYX_ERR(2, 287, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_tuple__39);
-  __Pyx_GIVEREF(__pyx_tuple__39);
+  __pyx_tuple__38 = PyTuple_Pack(1, __pyx_kp_s_strided_and_indirect); if (unlikely(!__pyx_tuple__38)) __PYX_ERR(2, 287, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_tuple__38);
+  __Pyx_GIVEREF(__pyx_tuple__38);
 
   /* "View.MemoryView":290
  * 
@@ -20598,9 +20674,9 @@ static int __Pyx_InitCachedConstants(void) {
  * cdef indirect_contiguous = Enum("<contiguous and indirect>")
  * 
  */
-  __pyx_tuple__40 = PyTuple_Pack(1, __pyx_kp_s_contiguous_and_direct); if (unlikely(!__pyx_tuple__40)) __PYX_ERR(2, 290, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_tuple__40);
-  __Pyx_GIVEREF(__pyx_tuple__40);
+  __pyx_tuple__39 = PyTuple_Pack(1, __pyx_kp_s_contiguous_and_direct); if (unlikely(!__pyx_tuple__39)) __PYX_ERR(2, 290, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_tuple__39);
+  __Pyx_GIVEREF(__pyx_tuple__39);
 
   /* "View.MemoryView":291
  * 
@@ -20609,19 +20685,19 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  * 
  */
-  __pyx_tuple__41 = PyTuple_Pack(1, __pyx_kp_s_contiguous_and_indirect); if (unlikely(!__pyx_tuple__41)) __PYX_ERR(2, 291, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_tuple__41);
-  __Pyx_GIVEREF(__pyx_tuple__41);
+  __pyx_tuple__40 = PyTuple_Pack(1, __pyx_kp_s_contiguous_and_indirect); if (unlikely(!__pyx_tuple__40)) __PYX_ERR(2, 291, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_tuple__40);
+  __Pyx_GIVEREF(__pyx_tuple__40);
 
   /* "(tree fragment)":1
  * def __pyx_unpickle_Enum(__pyx_type, long __pyx_checksum, __pyx_state):             # <<<<<<<<<<<<<<
  *     if __pyx_checksum != 0xb068931:
  *         from pickle import PickleError as __pyx_PickleError
  */
-  __pyx_tuple__42 = PyTuple_Pack(5, __pyx_n_s_pyx_type, __pyx_n_s_pyx_checksum, __pyx_n_s_pyx_state, __pyx_n_s_pyx_PickleError, __pyx_n_s_pyx_result); if (unlikely(!__pyx_tuple__42)) __PYX_ERR(2, 1, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_tuple__42);
-  __Pyx_GIVEREF(__pyx_tuple__42);
-  __pyx_codeobj__43 = (PyObject*)__Pyx_PyCode_New(3, 0, 5, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__42, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_stringsource, __pyx_n_s_pyx_unpickle_Enum, 1, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__43)) __PYX_ERR(2, 1, __pyx_L1_error)
+  __pyx_tuple__41 = PyTuple_Pack(5, __pyx_n_s_pyx_type, __pyx_n_s_pyx_checksum, __pyx_n_s_pyx_state, __pyx_n_s_pyx_PickleError, __pyx_n_s_pyx_result); if (unlikely(!__pyx_tuple__41)) __PYX_ERR(2, 1, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_tuple__41);
+  __Pyx_GIVEREF(__pyx_tuple__41);
+  __pyx_codeobj__42 = (PyObject*)__Pyx_PyCode_New(3, 0, 5, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__41, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_stringsource, __pyx_n_s_pyx_unpickle_Enum, 1, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__42)) __PYX_ERR(2, 1, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
@@ -20652,7 +20728,6 @@ static int __Pyx_modinit_global_init_code(void) {
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__Pyx_modinit_global_init_code", 0);
   /*--- Global init code ---*/
-  __pyx_v_7ConTExt_5tools_17cython_extensions_operations = ((PyObject*)Py_None); Py_INCREF(Py_None);
   generic = Py_None; Py_INCREF(Py_None);
   strided = Py_None; Py_INCREF(Py_None);
   indirect = Py_None; Py_INCREF(Py_None);
@@ -20974,48 +21049,22 @@ if (!__Pyx_RefNanny) {
  * import time
  * import numpy             # <<<<<<<<<<<<<<
  * import cython
- * 
+ * cimport numpy
  */
   __pyx_t_1 = __Pyx_Import(__pyx_n_s_numpy, 0, -1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   if (PyDict_SetItem(__pyx_d, __pyx_n_s_numpy, __pyx_t_1) < 0) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "ConTExt/tools/cython_extensions.pyx":26
- * cimport numpy
- * ctypedef numpy.int_t DTYPE_t
- * cdef list operations=['=','D','I','X']             # <<<<<<<<<<<<<<
- * 
- * 
- */
-  __pyx_t_1 = PyList_New(4); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 26, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_1);
-  __Pyx_INCREF(__pyx_kp_s__35);
-  __Pyx_GIVEREF(__pyx_kp_s__35);
-  PyList_SET_ITEM(__pyx_t_1, 0, __pyx_kp_s__35);
-  __Pyx_INCREF(__pyx_n_s_D);
-  __Pyx_GIVEREF(__pyx_n_s_D);
-  PyList_SET_ITEM(__pyx_t_1, 1, __pyx_n_s_D);
-  __Pyx_INCREF(__pyx_n_s_I);
-  __Pyx_GIVEREF(__pyx_n_s_I);
-  PyList_SET_ITEM(__pyx_t_1, 2, __pyx_n_s_I);
-  __Pyx_INCREF(__pyx_n_s_X);
-  __Pyx_GIVEREF(__pyx_n_s_X);
-  PyList_SET_ITEM(__pyx_t_1, 3, __pyx_n_s_X);
-  __Pyx_XGOTREF(__pyx_v_7ConTExt_5tools_17cython_extensions_operations);
-  __Pyx_DECREF_SET(__pyx_v_7ConTExt_5tools_17cython_extensions_operations, ((PyObject*)__pyx_t_1));
-  __Pyx_GIVEREF(__pyx_t_1);
-  __pyx_t_1 = 0;
-
-  /* "ConTExt/tools/cython_extensions.pyx":139
+  /* "ConTExt/tools/cython_extensions.pyx":131
  * 
  * 
  * def main():             # <<<<<<<<<<<<<<
- * 	pass
+ *     pass
  */
-  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_7ConTExt_5tools_17cython_extensions_9main, NULL, __pyx_n_s_ConTExt_tools_cython_extensions_2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 139, __pyx_L1_error)
+  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_7ConTExt_5tools_17cython_extensions_9main, NULL, __pyx_n_s_ConTExt_tools_cython_extensions_2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 131, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_main_2, __pyx_t_1) < 0) __PYX_ERR(0, 139, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_main_2, __pyx_t_1) < 0) __PYX_ERR(0, 131, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
   /* "ConTExt/tools/cython_extensions.pyx":1
@@ -21048,7 +21097,7 @@ if (!__Pyx_RefNanny) {
  * cdef strided = Enum("<strided and direct>") # default
  * cdef indirect = Enum("<strided and indirect>")
  */
-  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)__pyx_MemviewEnum_type), __pyx_tuple__37, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(2, 285, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)__pyx_MemviewEnum_type), __pyx_tuple__36, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(2, 285, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_XGOTREF(generic);
   __Pyx_DECREF_SET(generic, __pyx_t_1);
@@ -21062,7 +21111,7 @@ if (!__Pyx_RefNanny) {
  * cdef indirect = Enum("<strided and indirect>")
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)__pyx_MemviewEnum_type), __pyx_tuple__38, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(2, 286, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)__pyx_MemviewEnum_type), __pyx_tuple__37, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(2, 286, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_XGOTREF(strided);
   __Pyx_DECREF_SET(strided, __pyx_t_1);
@@ -21076,7 +21125,7 @@ if (!__Pyx_RefNanny) {
  * 
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)__pyx_MemviewEnum_type), __pyx_tuple__39, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(2, 287, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)__pyx_MemviewEnum_type), __pyx_tuple__38, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(2, 287, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_XGOTREF(indirect);
   __Pyx_DECREF_SET(indirect, __pyx_t_1);
@@ -21090,7 +21139,7 @@ if (!__Pyx_RefNanny) {
  * cdef indirect_contiguous = Enum("<contiguous and indirect>")
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)__pyx_MemviewEnum_type), __pyx_tuple__40, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(2, 290, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)__pyx_MemviewEnum_type), __pyx_tuple__39, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(2, 290, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_XGOTREF(contiguous);
   __Pyx_DECREF_SET(contiguous, __pyx_t_1);
@@ -21104,7 +21153,7 @@ if (!__Pyx_RefNanny) {
  * 
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)__pyx_MemviewEnum_type), __pyx_tuple__41, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(2, 291, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)__pyx_MemviewEnum_type), __pyx_tuple__40, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(2, 291, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_XGOTREF(indirect_contiguous);
   __Pyx_DECREF_SET(indirect_contiguous, __pyx_t_1);
