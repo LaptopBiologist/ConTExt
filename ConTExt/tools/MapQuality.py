@@ -38,6 +38,25 @@ IUPAC_DICT={'W':['A','T'], 'S':['C','G'], 'M':['A','C'],\
  'K':['G','T'], 'R':['A','G'], 'Y':['C','T'],\
  'B':['C','G','T'], 'D':['A','G','T'], 'H':['A','C', 'T'],\
  'V':['A','C','G'], 'N':['A','G','C','T'], 'U':['T'] }
+class SamLine():
+
+    def __init__(self, row):
+        self.id=row[0]
+        self.flag=int(row[1])
+        self.contig=row[2]
+        self.pos=int(row[3])
+        self.MapQ=int(row[4])
+        self.cigar=row[5]
+        self.rnext=row[6]
+        self.pnext=int(row[7])
+        self.tlen=int(row[8])
+        self.seq=row[9]
+        self.qual=row[10]
+        self.optional=row[11:]
+
+    def row(self):
+        return [self.id, self.flag, self.contig, self.pos, int(self.MapQ), self.cigar,\
+    self.rnext, self.pnext, self.tlen, self.seq, self.qual]+self.optional
 
 def ReplaceAmbiguousNucleotides(sequence):
     """Replaces ambiguous nucleotides with one of the nt that could be represented."""
@@ -632,7 +651,7 @@ def ScoreRead(read, qual, has_index,exp_seq, exp_pos,exp_cigar, phred=33, realig
 
     aligned_subjs=[]
     alignments=[]
-    min_k=20
+    min_k=numpy.ceil( len(read)*.25)
 
     for subject in subject_sequences:
         new_alignments, min_k=AlignRead(read, subject, min_k,distance_cutoff )
@@ -669,7 +688,7 @@ def ScoreRead(read, qual, has_index,exp_seq, exp_pos,exp_cigar, phred=33, realig
         subj_seq, subj_l, subj_r=ConvertAlignmentCoordinates(alignment,alignment.alignment['locations'][0], has_index)
         if realign==False:
             #MAPQ will be defined relative to the alignment reported by Bowtie2
-            print subj_seq, subj_l+1,subj_r+2, strand
+##            print subj_seq, subj_l+1,subj_r+2, strand
 ##            print exp_seq, exp_pos
             if subj_seq==exp_seq and exp_pos<subj_r and subj_l<=exp_pos:
 
@@ -712,13 +731,13 @@ def ScoreRead(read, qual, has_index,exp_seq, exp_pos,exp_cigar, phred=33, realig
         or best_cigar!=exp_cigar: alignment_differs=True
     else: alignment_differs=False
     if realign==True and alignment_differs== True:
-        print best_alignment_subj.subj_left, best_alignment_subj.subj_right
+##        print best_alignment_subj.subj_left, best_alignment_subj.subj_right
 
         SSW=StripedSmithWaterman(read, gap_open_penalty=gap_open_penalty,gap_extend_penalty=gap_extend_penalty,match_score=match_score, mismatch_score=mismatch_score )
         alignment=SSW(best_alignment_subj.subject)
-        print (alignment['target_begin'],alignment['target_end_optimal']), 'Target'
-        print best_alignment_subj.alignment['locations'], 'Locations'
-        print (alignment['query_begin'],alignment['query_end']), "Query"
+##        print (alignment['target_begin'],alignment['target_end_optimal']), 'Target'
+##        print best_alignment_subj.alignment['locations'], 'Locations'
+##        print (alignment['query_begin'],alignment['query_end']), "Query"
 
         cigar_string=alignment['cigar']
         if alignment['query_begin']!=0:
@@ -781,7 +800,7 @@ def EdlibToSamCigar(cigar):
 def GetPotentialTargetSequences(read, hash_index, Print=False):
 
     read_length=len(read)
-    seeds=hash_index.decompose_read(read, .4)
+    seeds=hash_index.decompose_read(read, .5)
 
 
     pos=[]
@@ -821,7 +840,7 @@ def GetPotentialTargetSequences(read, hash_index, Print=False):
     else:
         max_hit=min(seed_count,numpy.max(diff) )
 ##        print seed_count,numpy.max(diff), max_hit
-        min_size=max(2,max( (max_hit-2,max_hit*.6)))
+        min_size=max(2,max( (max_hit-1,max_hit*.6)))
 
     accept_ind=numpy.where(diff>=min_size)[0]
 
@@ -1259,6 +1278,74 @@ def ScoreAllAlignments(alignments, expected_seeds=9):
     mapq=min(40, -4.34*numpy.log(1-( numpy.exp( max(scores))/sum(numpy.exp( scores)))))
     return mapq
 
+def ParseCIGAR(CIGAR):
+    """Reads a sam CIGAR string to count deletions and insertions and matches"""
+
+    parts={'M':0, 'I':0,'D':0}
+    cigar=numpy.fromstring( CIGAR,'|S1')
+
+    m=numpy.where(cigar=='M')
+    i=numpy.where(cigar=='I')
+    d=numpy.where(cigar=='D')
+    M=['M']*len(m[0])
+    I=['I']*len(i[0])
+    D=['D']*len(d[0])
+    indices=numpy.concatenate((m,i,d),-1)
+    values=numpy.concatenate((M,I,D),-1)
+    pairs=[]
+    for w in range(len(indices[0])):
+        pairs.append((indices[0][w], values[w]))
+    pairs=sorted(pairs, key=lambda x: x[0])
+    last=0
+    for p in pairs:
+        val=int(CIGAR[last:p[0]])
+        parts[p[1]]+=val
+        last=1+p[0]
+    return(parts)
+
+def RealignSAM(infile, outfile, index):
+    inhandle=open(infile, 'r')
+    intable=csv.reader(inhandle, delimiter='\t')
+    outhandle=open(outfile, 'w')
+    outtable=csv.writer(outhandle, delimiter='\t')
+    est_mapq=[]
+    prev_mapq=[]
+    pos=[]
+    row=intable.next()
+    start=time.clock()
+    count=0
+    score_tracker=[]
+    for row in intable:
+        if row[0][0]=='@':
+            outtable.writerow(row)
+            continue
+        line=SamLine(row)
+        if len(line.seq)>=23:
+            count+=1
+            parsed_ciger=ParseCIGAR(line.cigar)
+            length=parsed_ciger['M']+parsed_ciger['D']
+            score1, best_seq_1, best_loc_1, best_cigar_1=ScoreRead(line.seq,line.qual,index, line.contig,(line.pos, line.pos+length) ,line.cigar,realign=True)
+            line.MapQ=score1
+##            line.flag=line.contig
+            line.contig=best_seq_1
+
+            line.pos=best_loc_1[0]
+            line.cigar=best_cigar_1
+            outtable.writerow(line.row())
+        else:
+            line.MapQ=0
+            line.contig='*'
+            line.pos='*'
+            line.cigar='*'
+            line.flag=4
+            outtable.writerow(line.row())
+
+    inhandle.close()
+    outhandle.close()
+    print (time.clock()-start)
+    print (count)
+    return numpy.array( est_mapq), numpy.array( prev_mapq), numpy.array(pos), score_tracker
+
 def TestMapQ(infile, outfile, index):
     inhandle=open(infile, 'r')
     intable=csv.reader(inhandle, delimiter='\t')
@@ -1437,6 +1524,12 @@ def main(argv):
         param[argv[i]]= argv[i+1]
     print param
     if param=={}: return()
+    if param.has_key('-sam')==True:
+        hi=HashedIndex( int(param['-p']))
+        LoadIndex(param['-ind'], hi)
+
+        RealignSAM(param['-sam'], param['-o'], hi)
+        return()
     if param.has_key('-build')==True:
         hi=HashedIndex( int(param['-p']))
         hi.BuildIndex(param['-build'], bool(param['-full']))

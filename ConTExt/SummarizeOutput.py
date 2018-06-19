@@ -32,12 +32,33 @@ import sys
 import pickle
 try:
     import tools.CoverageModeller as CoverageModeller
+    import pickle
     from tools.General_Tools import *
+    from matplotlib import pyplot
 except:
     print('Failed to import tool modules')
 
 csv.field_size_limit(sys.maxsize)
 
+class SamLine():
+
+    def __init__(self, row):
+        self.id=row[0]
+        self.flag=int(row[1])
+        self.contig=row[2]
+        self.pos=int( float(row[3]))
+        self.MapQ=int(row[4])
+        self.cigar=row[5]
+        self.rnext=row[6]
+        self.pnext=int(row[7])
+        self.tlen=int(row[8])
+        self.seq=row[9]
+        self.qual=row[10]
+        self.optional=row[11:]
+
+    def row(self):
+        return [self.id, self.flag, self.contig, self.pos, int(self.MapQ), self.cigar,\
+    self.rnext, self.pnext, self.tlen, self.seq, self.qual]+self.optional
 
 def ReadDistributions(infile, cutoff=.005, return_full=True):
     """Reads the *.tsv file which stores the insert size or read length distribution.
@@ -437,16 +458,51 @@ def SplitConTEXtOutput(infile, outDir):
 #
 #------------------------------------------------------------------------------#
 
+def PullSnpTable(indir, in_tail, outdir, ID_file='', consensus=False):
+##    MakeDir(outdir)
+    files=os.listdir(indir)
+    image_directory={}
+    ID_handle=open(ID_file, 'r')
+    ID_table=csv.reader(ID_handle, delimiter='\t')
+    samples=ID_table.next()
+    reps=ID_table.next()
+    IDs=ID_table.next()
+    ID_dict={}
+    for i in range(len(IDs)):
+        print i
+        if ID_dict.has_key(samples[i])==False:
+            ID_dict[samples[i]]={}
+##        ID_dict[samples[i]][reps[i]]=IDs[i]
+        if ID_dict[samples[i]].has_key(reps[i])==False:
+            ID_dict[samples[i]][reps[i]]={}
+        ID_dict[samples[i]][reps[i]][IDs[i]]=True
 
-def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,sample_pos=1, rep_pos=-1 ):
+
+
+def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,method='consensus',ID_file='', sample_pos=0, rep_pos=1 ):
     MakeDir(outdir)
     files=os.listdir(indir)
     image_directory={}
     rpt_dict=GetSeq(seq_file)
     snp_dict={}
+
+    if  method=='ID':
+        #The load the IDs to examine
+        ID_handle=open(ID_file, 'r')
+        ID_table=csv.reader(ID_handle, delimiter='\t')
+        IDs=ID_table.next()
+        ID_dict={}
+        for i in range(len(IDs)):
+            print i
+            if ID_dict.has_key(samples[i])==False:
+                ID_dict[samples[i]]={}
+            if ID_dict[samples[i]].has_key(reps[i])==False:
+                ID_dict[samples[i]][reps[i]]={}
+            ID_dict[samples[i]][reps[i]][IDs[i]]=True
+
     #Fill the dictionary firs
     for rpt in sorted( rpt_dict.keys()):
-        length=len(rpt_dict)+1
+        length=len(rpt_dict[rpt])+1
         snp_dict[rpt]={}
         for f in sorted( files ):
 
@@ -467,6 +523,7 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,sample_pos=1, rep_
     sample_file=outdir+'/sample.tsv'
     sample_handle=open(sample_file, 'w')
     sample_table=csv.writer(sample_handle, delimiter='\t')
+    count=0
     for f in sorted( files ):
 
         #Only process files with the appropriate tag
@@ -485,11 +542,12 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,sample_pos=1, rep_
             rep='1'
         if rep=='2': continue
 ##        continue
-
+        print sample
         inhandle=open(indir+'/'+f, 'r')
         intable=csv.reader(inhandle, delimiter= '\t')
         intable.next()
         sample_table.writerow([sample])
+        print '\n'
         for row in intable:
             try:
                 line=cluster(row)
@@ -497,8 +555,8 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,sample_pos=1, rep_
                 print row
                 print jabber
             #Delete this tomorrow
-            if line.Seq1=='L1HS' or line.Seq1=='AluYb10': continue
-            if line.feature=='Consensus':
+##            if line.Seq1=='L1HS' or line.Seq1=='AluYb10': continue
+            if method=='consensus' and line.feature=='Consensus':
 ##                print line.ID
                 try:
                     length=len(rpt_dict[line.Seq1])+1
@@ -506,9 +564,18 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,sample_pos=1, rep_
                     #Not in the repeat index:
                     continue
 
-                snp_dict[line.Seq1][sample]=(PileUp(line, length=length))
+                pileup=PileUp(line, length=length)
+                snp_dict[line.Seq1][sample]=pileup
+
+                print '.',
+            elif method=='ID':
+                if ID_dict[sample][rep].has_key(line.ID)==True:
+                    pileup=PileUp(line, length=length)
+                    snp_dict[line.Seq1][sample]=pileup
+
 ##                break
         inhandle.close()
+        print '\n'
 ##        print len(snp_list)
     #Write the output files
     for repeat in sorted( snp_dict.keys()):
@@ -516,7 +583,10 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,sample_pos=1, rep_
         for sample in sorted(snp_dict[repeat].keys()):
             repeat_array.append(snp_dict[repeat][sample])
         outfile='{0}/{1}_snps.npy'.format(outdir, repeat)
-        numpy.save(outfile, numpy.array(repeat_array))
+        numpy.save(outfile, numpy.stack(repeat_array))
+##        outhandle=open(outfile, 'w')
+##        pickle.dump(repeat_array, outhandle)
+##        outhandle.close()
 
 def PileUp(clust, Seq='', length=8119):
     SNP_array=numpy.ndarray((5,length))
@@ -527,7 +597,7 @@ def PileUp(clust, Seq='', length=8119):
     count=0.
     cig_list,md_list, pos_list=[],[],[]
     for i in range(clust.count):
-        if clust.MapQY[i]<20 and clust.MapQX[i]<20: continue
+##        if clust.MapQY[i]<20 and clust.MapQX[i]<20: continue
         x_3=clust.x_list[i]
         y_3=clust.y_list[i]
         try:
@@ -624,6 +694,83 @@ def PileUp(clust, Seq='', length=8119):
     print SNP_array.sum()
     return SNP_array
 
+
+def ReadToSNPs(read):
+    nt={'A':1, 'T':2, 'C':3,'G':4}
+    read_array=numpy.fromstring(read, '|S1')
+    nt_array=numpy.array([0]*len(read))
+    for key in nt:
+        nt_array[read_array==key]=nt[key]
+    return nt_array
+
+def GenConsensus(snp_table):
+    nt_dict={0:'A',1:"A", 2:'T',3:'C', 4:'G'}
+    max_ind=numpy.argmax(snp_table[:,1:],0)
+    print max_ind
+    cons=''
+    for ind in max_ind:
+        cons+=nt_dict[ind]
+    return cons
+
+
+
+def PileupSam(samfile, outfile='', pad=0):
+    inhandle=open(samfile,'r')
+    intable=csv.reader(inhandle, delimiter='\t')
+    table_dict={}
+    count=0
+    for row in intable:
+        #headers
+        if row[0][0]=='@':
+            if row[0]=='@SQ':
+                name=row[1].split(':')[-1]
+                length=int(row[2].split(':')[-1])
+                table_dict[name]=numpy.ndarray((5,length+1))
+                table_dict[name].fill(0.)
+            continue
+##        if count>20000:break
+        try:
+            line=SamLine(row)
+        except:
+            continue
+        if line.MapQ<=20: continue
+        if line.cigar.count('D')+line.cigar.count('I')!=0: continue
+        if line.contig=='*': continue
+        table_dict[line.contig]=AddSamRead(line, table_dict[line.contig], pad=pad)
+    inhandle.close()
+    if outfile!='':
+        outhandle=open(outfile, 'w')
+        pickle.dump(table_dict, outhandle)
+        outhandle.close()
+    return table_dict
+
+
+
+def AddSamRead(samline, snp_array, phred=33, pad=0):
+    nt_array=ReadToSNPs(samline.seq)
+    qual_array=numpy.array([ord(q)-phred for q in samline.qual])
+    cig_array=ExpandCIGAR(samline.cigar)
+    length=(cig_array=='M').sum()+(cig_array=='D').sum()
+    ref_matches=cig_array[cig_array!='I'] =='M'
+    read_matches=cig_array[cig_array!='D'] =='M'
+    good_pos=qual_array[read_matches]>=30
+##    ref_matched_indices=numpy.where((ref_matches*qual_array[read_matches])==True)[0]
+##    read_matched_indices=numpy.where((read_matches*qual_array[read_matches])==True)[0]
+    ref_matched_indices=numpy.where(cig_array[cig_array!='I'] =='M')[0]
+    read_matched_indices=numpy.where( cig_array[cig_array!='D'] =='M')[0]
+
+
+    start=samline.pos
+    end=start+length+1
+##    print snp_array[:,start:end,]
+##    print [nt_array[read_matched_indices],ref_matched_indices]
+    if pad!=0:
+        snp_array[:,start:end][nt_array[read_matched_indices][pad:-pad],ref_matched_indices[pad:-pad]]+=good_pos[pad:-pad]
+    else:
+        snp_array[:,start:end][nt_array[read_matched_indices],ref_matched_indices]+=1
+    return snp_array
+
+
 def ParseCIGAR(CIGAR):
     """Reads a sam CIGAR string to count deletions and insertions and matches"""
 
@@ -648,6 +795,16 @@ def ParseCIGAR(CIGAR):
         parts[p[1]]+=val
         last=1+p[0]
     return(parts)
+
+def LoadSamLines(infile):
+    inhandle=open(infile, 'r')
+    intable=csv.reader(inhandle, delimiter='\t')
+    samlines=[]
+    for row in intable:
+        line=SamLine(row)
+        if line.contig=='*': continue
+        samlines.append(line)
+    return samlines
 
 def ExpandMD(MD_string):
     """Consensus: 0
@@ -703,8 +860,24 @@ def ExpandCIGAR(CIGAR):
         count, val=int(chunk[:-1]),chunk[-1]
         CIGAR_list+=[val]*count
     return numpy.array( CIGAR_list)
+#-----------------------------------------------------------------------------#
+#       Diagnostic Functions
+#-----------------------------------------------------------------------------#
 
-
+from statsmodels import api
+def CheckAutocorrelation(signal):
+    acf=statsmodels.tsa.stattools.acf(signal[~numpy.isnan(signal)], nlags=1000, fft=True)
+    #Permute the signal
+    boot_straps=[]
+    for i in range(100):
+        ind=numpy.arange(len(signal))
+        numpy.random.shuffle(ind)
+        copy_af=signal[ind]
+        boot_straps.append(statsmodels.tsa.stattools.acf(copy_af[~numpy.isnan(copy_af)] , nlags=1000, fft=True))
+    for b in boot_straps:
+        f=pyplot.plot(b, c='grey', alpha=.2)
+    pyplot.plot(acf, c='r')
+    pyplot.show()
 
 def main(argv):
     param={}
@@ -712,6 +885,9 @@ def main(argv):
         param[argv[i]]= argv[i+1]
     print param
     if param=={}: return()
+    if param.has_key('-sam'):
+        t=PileupSam(param['-sam'], param['-o'])
+        return()
     if param.has_key('-split'):
         outdir='.'.join(param['-split'].split('.')[:-1])+'_split'
         SplitConTEXtOutput(param['-split'], outdir)
@@ -727,7 +903,13 @@ def main(argv):
     count=0
 
     if param.has_key('-snp')==True:
-        PileupConsensusSequences(param['-i'], param['-o'], param['-tail'], consfile)
+        if param['-snp']=='ID':
+            method='IDs'
+            ID_file=param['-id']
+        else:
+            method='consensus'
+            ID_files=''
+        PileupConsensusSequences(param['-i'], param['-o'], param['-tail'], consfile, method=method, ID_file=ID_file)
         return()
     sample_dict={}
     for file_path in file_list:
