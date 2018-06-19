@@ -351,7 +351,7 @@ def CallAligner(inFile, outFile, Index, cutoff, seedLength, threads, runlog, phr
     logfile=open(logname, 'w')
 
 
-    proc=subprocess.Popen([bowDir, '-p', threads , '-'+str(Phred[ phred]), '--score-min', 'L,0,'+ str(cutoff), '-L', str(seedLength),  '-x', Index, '-U', inFile, '-S', outFile], stderr=logfile)
+    proc=subprocess.Popen([bowDir, '-p', threads , '-'+str(Phred[ phred]),'--reorder', '--score-min', 'L,0,'+ str(cutoff), '-L', str(seedLength),  '-x', Index, '-U', inFile, '-S', outFile], stderr=logfile)
     print ("Aligning {0} to {1}...".format(inFile, Index ))
     time.sleep(.5)
     crash=CheckForCrash(logname)
@@ -416,7 +416,7 @@ def CheckForCrash(LogFile):
     except Exception: crashed=False
     return (crashed)
 
-def SortAlignment (inDir, Root, E, I, runlog, threads=1, samDir=''):
+def SortAlignment (inDir, Root, E, I, runlog, threads=1, samDir='', just_rename=True):
     """Call Samtools to sort alignments by read number to simplify matching read pairs."""
     sortFailed=False
     #Move to the SamTools directory
@@ -433,6 +433,9 @@ def SortAlignment (inDir, Root, E, I, runlog, threads=1, samDir=''):
             outBam=inDir+'/'+samRoot+'.bam'
             sortBam=inDir+'/'+samRoot+'_sorted'
             outSam=inDir+'/'+samRoot+'_sorted.sam'
+            if just_rename==True:
+                os.rename(inSam, outSam)
+                continue
             logfile.write('\nSorting {0}...\n'.format(samRoot))
             logfile.flush()
     #Convert the same file to an uncompressed Bam file
