@@ -33,7 +33,7 @@ from itertools import chain
 
 from multiprocessing import Pool
 from functools import partial
-
+import General_Tools
 ##print  psutil.cpu_count()
 ##p= psutil.Process()
 ##print p.cpu_affinity()  #
@@ -631,14 +631,19 @@ def DebugConvertSAMFromInsertionsToConsensus(inSam, conversionFile):
     return convertCount, total, convertCount/total
 
 
-def ConvertSAMFromInsertionsToConsensus(inSam, conversionFile, consensus_file='', replace_input=True, threads=1, buffer_size=1000000):
+def ConvertSAMFromInsertionsToConsensus(inSam, conversionFile, consensus_file='',reference_summary='',  replace_input=True, threads=1, buffer_size=1000000):
     #Read the conversion table
     #   consDict is used to identify reads that already align to the consensus
     #   insDict is used to identify which reads are aligned to insertions
     #   and stores the information necessary to convert insertion postions to consensus positions
     start=time.clock()
-    consSequences=GetSeq(consensus_file)
+
     consDict, insDict=ReadConversionTable(conversionFile)
+    if reference_summary!='':
+        all_sequences, consensus_sequences, reference_sequences=General_Tools.ReadReferenceSummaries(reference_summary)
+        consDict=all_sequences
+
+    consSequences=GetSeq(consensus_file)
 
     if threads>1:
         pool=Pool(processes= threads)
@@ -1239,17 +1244,27 @@ def main(argv):
         PrepareConversionTable(consFile, refFile, gffFile, outfile, blastdir)
     elif param['-fxn'].lower()=='convert':
         samFile=param['-i']
-        convFile=param['-conv']
-        consFile=param['-cons']
+
         if param.has_key('-replace')==True:
            replace=bool( param['-replace'])
         else: replace=False
-        if param.has_key('-p')==True:
-            threads=int(param['-p'])
+        if param.has_key('-spec')==False:
+            convFile=param['-conv']
+            consFile=param['-cons']
+            if param.has_key('-summ')==True:
+                summaryFile=param['-summ']
+            else: summaryFile=''
+            if param.has_key('-p')==True:
+                threads=int(param['-p'])
+            else:
+                threads=1
         else:
-            threads=1
-
-        convertCount, total, percent=ConvertSAMFromInsertionsToConsensus(samFile, convFile, consFile, replace_input=replace, threads=threads)
+            spec_dict=ReadSpecificationFile(param['-spec'])
+            convFile=spec_dict['ConversionTable']
+            consFile=spec_dict['Cons']
+            summaryFile=spec_dict['RefSummary']
+            threads=int( spec_dict['threads'])
+        convertCount, total, percent=ConvertSAMFromInsertionsToConsensus(samFile, convFile, consFile,summaryFile, replace_input=replace, threads=threads)
         print "Converted {0} out of {1} insertion alignments to consensus alignments ({2}%)".format(convertCount, total, percent*100.)
 
 ##    except:
