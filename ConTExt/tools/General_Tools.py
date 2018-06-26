@@ -10,6 +10,7 @@
 #-------------------------------------------------------------------------------
 
 from Bio import SeqIO
+from Bio import Seq
 import numpy
 import gzip
 import csv
@@ -395,6 +396,22 @@ def WeightedStdDev(weights, items):
     sd=numpy.nansum(weights* (items-avg)**2)**.5
     return sd
 
+def ReadReferenceSummaries(infile):
+    inhandle=open(infile, 'r')
+    intable=csv.reader(inhandle, delimiter='\t')
+    ref_dict={}
+    cons_dict={}
+    entry_dict={}
+    for row in intable:
+        entry_type, entry_name=row[0], row[1]
+
+        entry_dict[entry_name]=True
+        if entry_type=='@ref':
+            ref_dict[entry_name]=True
+        if entry_type=='@cons':
+            cons_dict[entry_name]=True
+    inhandle.close()
+    return entry_dict, cons_dict, ref_dict
 
 def main():
     pass

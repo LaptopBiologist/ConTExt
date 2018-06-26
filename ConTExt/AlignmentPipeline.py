@@ -829,7 +829,7 @@ def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, GemCode, cons_file
 
     A read pair where both ends are unmapped is discarded."""
 
-    consensus_sequences=GetSeq(cons_file)
+    all_sequences, consensus_sequences, reference_sequences=ReadReferenceSummaries(cons_file)
     ChrKey={}
     ChrKey['*']='um'
 
@@ -1555,6 +1555,21 @@ def ParseCIGAR(CIGAR):
         last=1+p[0]
     return(parts)
 
+
+def SummarizeReferenceSequences(ref_file, cons_file, outfile):
+    """Create a file indicating which sequence entries belong to the reference
+    and which belong to the consensus index."""
+    ref_seq=GetSeq(ref_file)
+    cons_seq=GetSeq(cons_file)
+    outhandle=open(outfile, 'w')
+    outtable=csv.writer(outhandle, delimiter='\t')
+    for refname in ref_seq.keys():
+        outtable.writerow(['@ref', refname])
+    for consname in cons_seq.keys():
+        outtable.writerow(['@cons', consname])
+    outhandle.close()
+
+
 def main(argv):
     param={}
     for i in range(1, len(argv), 2):
@@ -1567,6 +1582,15 @@ def main(argv):
         return
 
     spec_dict=ReadSpecificationFile(param['-spec'])
+    if param.has_key('-summary')==True:
+        SummarizeReferenceSequences(spec_dict['Masked'], spec_dict['Cons'], param['-summary'])
+        return
+
+    MakeDir(spec_dict["Scratch"])
+    if spec_dict['RefSummary']=='':
+        summary_path=spec_dict["Scratch"]+'/ref_summary.tsv'
+        SummarizeReferenceSequences(spec_dict['Masked'], spec_dict['Cons'], summary_path)
+        spec_dict['RefSummary']=summary_path
     #inDir, outDir, AssemblyIndex, TEIndex, threads, length=70, ReadIDPosition=1, PositionRange=0, phred=33, shorten=True, Trim=True
     inDir=param['-i']
     outDir=param['-o']
