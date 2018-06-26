@@ -667,28 +667,28 @@ def RejoinSam (inDir, Root , end, CountPosition, PosRange , IndexList):
     ChrKey={}
     ChrKey['*']='um'
     Error=False
-    try:
-        AsIn=inDir+'/'+'_'.join([Root,end,'p',IndexList[0], 'filtered'])+'.sam'
-        AsHandle=open(AsIn, 'r')
-        AsLib=csv.reader(AsHandle, delimiter='\t')
+##    try:
+    AsIn=inDir+'/'+'_'.join([Root,end,'p',IndexList[0], 'filtered'])+'.sam'
+    AsHandle=open(AsIn, 'r')
+    AsLib=csv.reader(AsHandle, delimiter='\t')
 
-        TEIn=inDir+'/'+'_'.join([Root, end,'p',IndexList[1], 'filtered'])+'.sam'
-        TEHandle=open(TEIn, 'r')
-        TELib=csv.reader(TEHandle, delimiter='\t')
+    TEIn=inDir+'/'+'_'.join([Root, end,'p',IndexList[1], 'filtered'])+'.sam'
+    TEHandle=open(TEIn, 'r')
+    TELib=csv.reader(TEHandle, delimiter='\t')
 
 
-        UmIn=inDir+'/'+'_'.join([Root, end,'p','um', 'filtered'])+'.sam'
-        UmHandle=open(UmIn, 'r')
-        UmLib=csv.reader(UmHandle, delimiter='\t')
+    UmIn=inDir+'/'+'_'.join([Root, end,'p','um', 'filtered'])+'.sam'
+    UmHandle=open(UmIn, 'r')
+    UmLib=csv.reader(UmHandle, delimiter='\t')
 
-        OutName=inDir+'/'+'_'.join([Root, end,'p','joined'])+'.sam'
-        OutFile=open(OutName, 'w')
-        OutWrite=csv.writer(OutFile, delimiter='\t')
+    OutName=inDir+'/'+'_'.join([Root, end,'p','joined'])+'.sam'
+    OutFile=open(OutName, 'w')
+    OutWrite=csv.writer(OutFile, delimiter='\t')
 
-    except Exception:
-        print ('Open failed!')
-        Error=True
-        return (Error)
+##    except Exception:
+##        print ('Open failed!')
+##        Error=True
+##        return (Error)
 
     stop=False
     Readers=[AsLib, TELib, UmLib]
@@ -799,7 +799,16 @@ def GetOutputLine(FirstRow, SecondRow):
 
     return (FirstHalf + SecondHalf)
 
-def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, IndexList, GemCode):
+def AssignRead(contig, cons_dict):
+    if cons_dict.has_key(contig)==True:
+        assignment='te'
+    elif contig=='*':
+        assignment='um'
+    else:
+        assignment='as'
+    return assignment
+
+def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, GemCode, cons_file):
 
     """Converts the four *.sam files (as_1, as_2, te_1, te_2) into two *.sam files,
     and then creates a new output format where each read pair is specified with a row.
@@ -819,17 +828,17 @@ def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, IndexList, GemCode
     A read pair which has one unmapped reads will be assigned based on the mapped read.
 
     A read pair where both ends are unmapped is discarded."""
+
+    consensus_sequences=GetSeq(cons_file)
     ChrKey={}
     ChrKey['*']='um'
-
 
     #Prepare End 2 for the efficient sorting, by rejoining the component parts
     #in an ordered SAM
 
-    ChrKey = RejoinSam(inDir, Root, END[1], CountPosition, 0, ['as', 'te'])
-    ChrKey = RejoinSam(inDir, Root, END[0], CountPosition, 0,['as', 'te'])
 
-    #Opent the rejoined End 2; hereafter this is refered to as Source
+
+    #Open the rejoined End 2; hereafter this is refered to as Source
 
     Query={}
 
@@ -841,13 +850,12 @@ def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, IndexList, GemCode
     QueryHandle=open(QueryName, 'r')
     QueryLib=csv.reader(QueryHandle, delimiter='\t')
 
-
-
     Row={}
     rNumber={}
     written={}
     skip={}
     sCount=0
+
 #Skip headers
     count={}
     SourceRow=SourceLib.next()
@@ -885,12 +893,13 @@ def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, IndexList, GemCode
         rNumber=CalculateReadNumber(Row, CountPosition, PosRange)
 
         #Look for matches and write output if they are found:
-        SourceType=ChrKey[SourceRow[2]]
-        w=ChrKey[Row[2]]
+        TargetType=AssignRead( Row[2], consensus_sequences)
+        SourceType=AssignRead( SourceRow[2],consensus_sequences)
+
         if GemCode==True: barcode=[Row[0].split('.')[-1]]
         else: barcode=[]
         if rNumber==SourceNum and SourceType=='te':
-            if w=='te':
+            if TargetType=='te':
                 line=GetOutputLine(SourceRow, Row)
                 filename=directory+SourceRow[2]+'.dat'
                 outFiles[filename].writerow(line+barcode)
@@ -900,31 +909,31 @@ def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, IndexList, GemCode
                     filename=directory+Row[2]+'.dat'
                     outFiles[filename].writerow(line+barcode)
 
-                if w=='um':
+                if TargetType=='um':
                     line=GetOutputLine(SourceRow, Row)
                     filename=directory+SourceRow[2]+'.dat'
                     outFiles[filename].writerow(line+barcode)
 
 
-                if w=='as':
+                if TargetType=='as':
                     line=GetOutputLine(SourceRow, Row)
                     filename=directory+SourceRow[2]+'.dat'
                     outFiles[filename].writerow(line+barcode)
 
 
         if rNumber==SourceNum and SourceType=='as':
-                if w=='te':
+                if TargetType=='te':
                     line=GetOutputLine(Row, SourceRow)
                     filename=directory+Row[2]+'.dat'
                     outFiles[filename].writerow(line+barcode)
 
 
-                if w=='um':
+                if TargetType=='um':
                     line=GetOutputLine(SourceRow, Row)
                     filename=directory+SourceRow[2]+'.dat'
                     outFiles[filename].writerow(line+barcode)
 
-                if w=='as':
+                if TargetType=='as':
                     line=GetOutputLine(SourceRow, Row)
                     filename=directory+SourceRow[2]+'.dat'
                     outFiles[filename].writerow(line+barcode)
@@ -938,13 +947,13 @@ def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, IndexList, GemCode
 
 
         if rNumber==SourceNum and SourceType=='um':
-                if w=='te':
+                if TargetType=='te':
                     line=GetOutputLine(Row, SourceRow)
                     filename=directory+Row[2]+'.dat'
                     outFiles[filename].writerow(line+barcode)
 
 
-                if w=='as':
+                if TargetType=='as':
                     line=GetOutputLine(Row, SourceRow)
                     filename=directory+Row[2]+'.dat'
                     outFiles[filename].writerow(line+barcode)
@@ -1495,7 +1504,11 @@ def pipeline (inDir, outDir, AssemblyIndex, TEIndex, threads, config, cons_file=
         for n in['1','2']:
             for i in ['as', 'te']:
                 os.remove(outDir+'/'+sample+ '_'.join(['',n,'p',i, 'sorted' ])+'.sam')
-        OrganizeOutput(outDir,sample, Ends, ReadIDPosition, 0, ['as', 'te'], GemCode)
+        #Join the _te.sam and _as.sam into a single *.sam file for each end.
+        ChrKey = RejoinSam(outDir, sample, Ends[1], ReadIDPosition, 0, ['as', 'te'])
+        ChrKey = RejoinSam(outDir, sample, Ends[0], ReadIDPosition, 0,['as', 'te'])
+
+        OrganizeOutput(outDir,sample, Ends, ReadIDPosition, 0,  GemCode, cons_file=cons_file)
 
         Processed.append(sample)
         for n in['1','2']:
