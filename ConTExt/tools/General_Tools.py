@@ -403,14 +403,20 @@ def ReadReferenceSummaries(infile):
     cons_dict={}
     entry_dict={}
     for row in intable:
-        entry_type, entry_name=row[0], row[1]
+        try:
+            entry_type, entry_name=row[0], row[1]
 
-        entry_dict[entry_name]=True
-        if entry_type=='@ref':
-            ref_dict[entry_name]=True
-        if entry_type=='@cons':
-            cons_dict[entry_name]=True
+            entry_dict[entry_name]=True
+            if entry_type=='@ref':
+                ref_dict[entry_name]=True
+
+            if entry_type=='@cons':
+                cons_dict[entry_name]=True
+        except:
+            print row
+            print jabber
     inhandle.close()
+
     return entry_dict, cons_dict, ref_dict
 
 def main():
