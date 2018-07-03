@@ -37,7 +37,7 @@ import bz2file
 IUPAC_DICT={'W':['A','T'], 'S':['C','G'], 'M':['A','C'],\
  'K':['G','T'], 'R':['A','G'], 'Y':['C','T'],\
  'B':['C','G','T'], 'D':['A','G','T'], 'H':['A','C', 'T'],\
- 'V':['A','C','G'], 'N':['A','G','C','T'], 'U':['T'] }
+ 'V':['A','C','G'], 'N':['A','G','C','T'],'X':['A','G','C','T'], 'U':['T'] }
 class SamLine():
 
     def __init__(self, row):
@@ -408,6 +408,7 @@ class HashedIndex():
     def GetSeq(self,ref):
         """Different from Tools.General_Tools.GetSeq function in that this returns
         Bio.Seq objects."""
+        numpy.random.seed(0)
         handle=open(ref, 'r')
         lib=SeqIO.parse(handle, 'fasta')
         SeqLen=''
@@ -423,7 +424,9 @@ class HashedIndex():
             left_list.append(position)
             right_list.append(position+length)
             name_list.append(rec.name)
-            new_seq=str(rec.seq).upper()+'N'*offset
+            #Replace ambiguous nucleotides with randomly chosen but reasonable nucleotides
+            unambiguous_seq=ReplaceAmbiguousNucleotides(str(rec.seq).upper())
+            new_seq=unambiguous_seq+'N'*offset
             SeqLen+=new_seq
             position+=len(new_seq)
 
@@ -508,23 +511,35 @@ class HashedIndex():
 
 
 def CleanKmerLocations(hi, cutoff=60):
+    skip_count=0.
+    fuzzy_skip=0.
     for key in hi.kmer_location_dict.keys():
         locations=hi.kmer_location_dict[key]
-        sorted_loc=sorted(locations)
-        diff=numpy.diff([min(locations)-1]+  sorted_loc)
-        good_seeds=diff>cutoff
-        good_seeds[1:]+=good_seeds[:-1]
-##    return sorted_loc
-        hi.kmer_location_dict[key]=list(numpy.array(sorted_loc)[good_seeds])
+        if len(locations)>0:
+
+            sorted_loc=sorted(locations)
+            diff=numpy.diff([min(locations)-cutoff-1]+  sorted_loc)
+            good_seeds=diff>cutoff
+            good_seeds[1:]+=good_seeds[:-1]
+            good_seeds=( good_seeds>0).astype(bool)
+    ##    return sorted_loc
+            hi.kmer_location_dict[key]=list(numpy.array(sorted_loc)[good_seeds])
+        else:
+            skip_count+=1
 
         locations=hi.fuzzy_location_dict[key]
-        sorted_loc=sorted(locations)
-        diff=numpy.diff([min(locations)-1]+  sorted_loc)
-        good_seeds=diff>cutoff
-        good_seeds[1:]+=good_seeds[:-1]
-##    return sorted_loc
-        hi.fuzzy_location_dict[key]=list(numpy.array(sorted_loc)[good_seeds])
-
+        if len(locations)>0:
+            sorted_loc=sorted(locations)
+            diff=numpy.diff([min(locations)-cutoff-1]+  sorted_loc)
+            good_seeds=diff>cutoff
+            good_seeds[1:]+=good_seeds[:-1]
+            good_seeds=( good_seeds>0).astype(bool)
+    ##    return sorted_loc
+            hi.fuzzy_location_dict[key]=list(numpy.array(sorted_loc)[good_seeds])
+        else:
+            fuzzy_skip+=1
+    print skip_count, skip_count/len(hi.kmer_location_dict.keys())
+    print fuzzy_skip, fuzzy_skip/len(hi.fuzzy_location_dict.keys())
 def AlignRead(read, subject_sequence, k, distance_cutoff=4):
     min_k=k
     l,r,subject,strand=subject_sequence
@@ -624,8 +639,8 @@ def Realign(inread, index, format_='ConTExt'):
         pass
 
 def ScoreRead(read, qual, has_index,exp_seq, exp_pos,exp_cigar, phred=33, realign=False, gap_open_penalty=8,gap_extend_penalty=3, match_score=4, mismatch_score=-6, alt_read=''):
-    read=read.upper()
 
+    read=read.upper()
     #Identify potential alignments as regions with seed enrichments
     if alt_read=='':
         subject_sequences=GetPotentialTargetSequences(read, has_index)
@@ -730,7 +745,7 @@ def ScoreRead(read, qual, has_index,exp_seq, exp_pos,exp_cigar, phred=33, realig
     if best_left!=exp_pos[0] or best_right!=exp_pos[1] or best_seq!=exp_seq\
         or best_cigar!=exp_cigar: alignment_differs=True
     else: alignment_differs=False
-    if realign==True and alignment_differs== True:
+    if realign==True and alignment_differs== True and best_alignment_subj!='':
 ##        print best_alignment_subj.subj_left, best_alignment_subj.subj_right
 
         SSW=StripedSmithWaterman(read, gap_open_penalty=gap_open_penalty,gap_extend_penalty=gap_extend_penalty,match_score=match_score, mismatch_score=mismatch_score )
@@ -1360,8 +1375,8 @@ def TestMapQ(infile, outfile, index):
     score_tracker=[]
     for row in intable:
 
-        if row[0]!=row[6]: continue
-        if row[1]==row[7]: continue
+##        if row[0]!=row[6]: continue
+##        if row[1]==row[7]: continue
         count+=1
         r1, q1=row[4], row[5]
         exp_seq=row[0]
@@ -1369,7 +1384,7 @@ def TestMapQ(infile, outfile, index):
 
         r2, q2=row[10], row[11]
 
-        exp_seq_2=row[0]
+        exp_seq_2=row[6]
         exp_pos_2=(float(row[8]),float(row[9]))
 
 
@@ -1533,6 +1548,7 @@ def main(argv):
     if param.has_key('-build')==True:
         hi=HashedIndex( int(param['-p']))
         hi.BuildIndex(param['-build'], bool(param['-full']))
+        CleanKmerLocations(hi)
         StoreIndex(hi, param['-o'])
         return()
     index=HashedIndex(6)
