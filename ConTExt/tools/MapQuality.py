@@ -58,6 +58,112 @@ class SamLine():
         return [self.id, self.flag, self.contig, self.pos, int(self.MapQ), self.cigar,\
     self.rnext, self.pnext, self.tlen, self.seq, self.qual]+self.optional
 
+class ConTExtLine():
+    strand={'0':'+', '16':'-', '4':'*'}
+    reverse_strand={'+':'0', '-':'16', '*':'4'}
+    def __init__(self, row):
+
+        self.Seq1=row[0]
+        self.Strand1=ConTExtLine.strand[row[1]]
+        self.Start1=int(row[2])
+        self.End1=int(row[3])
+        self.Seq2=row[6]
+
+        self.Read1=row[4]
+        self.Read2=row[10]
+
+        self.Qual1=row[5]
+        self.Qual2=row[11]
+        self.Strand2=ConTExtLine.strand[row[7]]
+        self.Start2=int(row[8])
+        self.End2=int(row[9])
+        self.Cigar1=row[12]
+        self.Cigar2=row[13]
+        self.MapQ1=int(row[14])
+        self.MapQ2=int(row[15])
+        #self.Mismatches1=row[16]
+        #self.Mismatches2=row[17]
+        if self.Strand1=='+':
+            self.threePrime1=self.End1
+            self.fivePrime1=self.Start1
+        else:
+            self.threePrime1=self.Start1
+            self.fivePrime1=self.End1
+        if self.Strand2=='+':
+            self.threePrime2=self.End2
+            self.fivePrime2=self.Start2
+        else:
+            self.threePrime2=self.Start2
+            self.fivePrime2=self.End2
+        self.MD1=row[16]
+        self.MD2=row[17]
+        self.QD1=row[18]
+        self.QD2=row[19]
+        if len(row)>19:self.optional=row[19]
+        else: self.optional=''
+
+    def row(self):
+        row=[self.Seq1, ConTExtLine.reverse_strand[ self.Strand1], self.Start1, self.End1, self.Read1, self.Qual1, self.Seq2, ConTExtLine.reverse_strand[self.Strand2], self.Start2, self.End2,self.Read2,self.Qual2, self.Cigar1, self.Cigar2, self.MapQ1, self.MapQ2, self.MD1, self.MD2, self.QD1, self.QD2]+[self.optional]
+        return row
+
+    def inverse_row(self):
+        row=[self.Seq2, ConTExtLine.reverse_strand[ self.Strand2], self.Start2, self.End2, self.Read2,self.Qual2, self.Seq1,ConTExtLine.reverse_strand[ self.Strand1], self.Start1, self.End1,self.Read1,self.Qual1, self.Cigar2, self.Cigar1, self.MapQ2, self.MapQ1, self.MD2, self.MD1, self.QD2, self.QD1]+[self.optional]
+        return row
+
+
+class Read():
+    def __init__(self, line, end=1):
+        #This organizes all the information that ScoreRead needs
+        self.end=end
+        #If
+        self.line=line
+        if isinstance(line, SamLine) is True:
+            self.sequence=line.seq
+            self.qual=line.qual
+            self.position=line.pos
+            self.strand=line.flag
+            self.contig=line.contig
+            self.cigar=line.cigar
+
+        if isinstance(line, ConTExtLine) is True:
+            if self.end==1:
+                self.sequence=line.Read1
+                self.qual=line.Qual1
+                self.position=line.Start1
+                self.strand=ConTExtLine.reverse_strand[ line.Strand1]
+                self.contig=line.Seq1
+                self.cigar=line.Cigar1
+            if self.end==2:
+                self.sequence=line.Read2
+                self.qual=line.Qual2
+                self.position=line.Start2
+                self.strand=ConTExtLine.reverse_strand[ line.Strand2]
+                self.contig=line.Seq2
+                self.cigar=line.Cigar2
+
+        def UpdateLine(self):
+            if isinstance(self.line, SamLine) is True:
+                self.line.seq=self.sequence
+                self.line.qual=self.qual
+                self.line.pos=self.position
+                self.line.flag=self.strand
+                self.line.contig= self.contig
+                self.line.cigar=self.cigar
+            if isinstance(self.line, ConTExtLine) is True:
+                if self.end==1:
+                    self.line.Read1 = self.sequence
+                    self.line.Qual1 = self.qual
+                    self.line.Start1= self.position
+                    self.line.Strand1= ConTExtLine.strand[ self.strand]
+                    self.line.Seq1= self.contig
+                    self.line.Cigar1=self.cigar
+                if self.end==2:
+                    self.line.Read2 = self.sequence
+                    self.line.Qual2 = self.qual
+                    self.line.Start2= self.position
+                    self.line.Strand2= ConTExtLine.strand[ self.strand]
+                    self.line.Seq2= self.contig
+                    self.line.Cigar2=self.cigar
 def ReplaceAmbiguousNucleotides(sequence):
     """Replaces ambiguous nucleotides with one of the nt that could be represented."""
     seq_array=numpy.fromstring(sequence.upper(), '|S1')
@@ -637,6 +743,7 @@ def Realign(inread, index, format_='ConTExt'):
         pass
     if format_=='SAM':
         pass
+
 
 def ScoreRead(read, qual, has_index,exp_seq, exp_pos,exp_cigar, phred=33, realign=False, gap_open_penalty=8,gap_extend_penalty=3, match_score=4, mismatch_score=-6, alt_read=''):
 
@@ -1374,7 +1481,8 @@ def TestMapQ(infile, outfile, index):
     count=0
     score_tracker=[]
     for row in intable:
-
+        line=ConTExtLine(row)
+        read=Read(line)
 ##        if row[0]!=row[6]: continue
 ##        if row[1]==row[7]: continue
         count+=1
