@@ -762,19 +762,23 @@ def RejoinSam (inDir, Root , end, CountPosition, PosRange , IndexList):
     OutFile.close()
     return(ChrKey)
 
-def CalculateReadNumber(row, CountPosition, Col=3, sep='.'):
-    AsPos1=float(row[0].split(sep)[CountPosition])
+def CalculateReadNumber(row, CountPosition, Col=3, sep='.', match_by_read_ID=True):
 
-    if Col==0:
-        return(AsPos1)
+    if match_by_read_ID==True:
+        AsPos1=float(row[0].split(sep)[CountPosition])
+
+        if Col==0:
+            return(AsPos1)
+        else:
+            AsPos2=float('.'+row[0].split(sep)[CountPosition+1].split('#')[0])
+            AsPos3=float('.000000000000000000000'\
+                +row[0].split(':')[CountPosition+1].split('#')[1].split('/')[0])
+
+            num=AsPos1+AsPos2+AsPos3
+
+            return(num)
     else:
-        AsPos2=float('.'+row[0].split(sep)[CountPosition+1].split('#')[0])
-        AsPos3=float('.000000000000000000000'\
-            +row[0].split(':')[CountPosition+1].split('#')[1].split('/')[0])
-
-        num=AsPos1+AsPos2+AsPos3
-
-        return(num)
+        return '/'.join(row[0].split('/')[:-1])
 
 def GetOutputLine(FirstRow, SecondRow):
     """Concatenates the two information about the two aligned reads in a pair
@@ -808,7 +812,7 @@ def AssignRead(contig, cons_dict):
         assignment='as'
     return assignment
 
-def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, GemCode, cons_file):
+def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, GemCode, cons_file, match_by_read_ID=False):
 
     """Converts the four *.sam files (as_1, as_2, te_1, te_2) into two *.sam files,
     and then creates a new output format where each read pair is specified with a row.
@@ -842,13 +846,22 @@ def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, GemCode, cons_file
 
     Query={}
 
-    SourceName=inDir+'/'+'_'.join([Root,END[1],'p','joined'])+'.sam'
-    SourceHandle=open(SourceName, 'r')
-    SourceLib=csv.reader(SourceHandle, delimiter='\t')
+    try:
+        SourceName=inDir+'/'+'_'.join([Root,END[1],'p','joined'])+'.sam'
+        SourceHandle=open(SourceName, 'r')
+        SourceLib=csv.reader(SourceHandle, delimiter='\t')
 
-    QueryName=inDir+'/'+'_'.join([Root,END[0],'p','joined'])+'.sam'
-    QueryHandle=open(QueryName, 'r')
-    QueryLib=csv.reader(QueryHandle, delimiter='\t')
+        QueryName=inDir+'/'+'_'.join([Root,END[0],'p','joined'])+'.sam'
+        QueryHandle=open(QueryName, 'r')
+        QueryLib=csv.reader(QueryHandle, delimiter='\t')
+    except:
+        SourceName=inDir+'/'+'_'.join([Root,END[1]])+'.sam'
+        SourceHandle=open(SourceName, 'r')
+        SourceLib=csv.reader(SourceHandle, delimiter='\t')
+
+        QueryName=inDir+'/'+'_'.join([Root,END[0]])+'.sam'
+        QueryHandle=open(QueryName, 'r')
+        QueryLib=csv.reader(QueryHandle, delimiter='\t')
 
     Row={}
     rNumber={}
@@ -889,9 +902,9 @@ def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, GemCode, cons_file
     SourceStop=False
     while SourceStop==False:
         #Calculate Read numbers
-        SourceNum=CalculateReadNumber(SourceRow, CountPosition, PosRange)
-        rNumber=CalculateReadNumber(Row, CountPosition, PosRange)
-
+        SourceNum=CalculateReadNumber(SourceRow, CountPosition, PosRange, match_by_read_ID=match_by_read_ID)
+        rNumber=CalculateReadNumber(Row, CountPosition, PosRange, match_by_read_ID=match_by_read_ID)
+##        print SourceNum, rNumber
         #Look for matches and write output if they are found:
         TargetType=AssignRead( Row[2], consensus_sequences)
         SourceType=AssignRead( SourceRow[2],consensus_sequences)
@@ -961,7 +974,17 @@ def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, GemCode, cons_file
                    #Check which files to iterate
         #First: Is the source less than or equal to all files? Iterate it:
 
-        if SourceNum<rNumber:
+        if match_by_read_ID==False:
+            try:
+                sCount+=1
+                SourceRow=SourceLib.next()
+            except StopIteration:
+                SourceStop=True
+            try:
+                Row=QueryLib.next()
+            except StopIteration:
+                SourceStop=True
+        elif SourceNum<rNumber:
 
             try:
                 sCount+=1
@@ -970,7 +993,7 @@ def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, GemCode, cons_file
             except StopIteration:
                 SourceStop=True
 
-        if rNumber<=SourceRow:
+        elif rNumber<=SourceRow:
             try:
                 Row=QueryLib.next()
             except StopIteration:
@@ -1588,6 +1611,7 @@ def main(argv):
 
     MakeDir(spec_dict["Scratch"])
     if spec_dict['RefSummary']=='':
+        #If there is no RefSummary, one needs to be created
         summary_path=spec_dict["Scratch"]+'/ref_summary.tsv'
         SummarizeReferenceSequences(spec_dict['Masked'], spec_dict['Cons'], summary_path)
         spec_dict['RefSummary']=summary_path
@@ -1613,6 +1637,10 @@ def main(argv):
     GemCode=spec_dict['Gemcode']
 
     print Parameters.BowtiePath
+    if param.has_key('-output')==True:
+        sample=param['-i'] #Should the be sample root without end information
+        OrganizeOutput(outDir,sample, ['1','2'], 1, 0,  GemCode, cons_file=spec_dict['RefSummary'],match_by_read_ID= False)
+        return
     pipeline(inDir, outDir, AssemblyIndex, TEIndex, str(threads), executables, cons_file=cons_file, PHRED=phred, length=length, convTable=convTable, rename=rename, GemCode=GemCode)
 
     pass
