@@ -9,14 +9,22 @@
 # Licence:     <your licence>
 #-------------------------------------------------------------------------------
 
+import matplotlib
 
 import sys
+if sys.platform[0]=='l':
+    matplotlib.use('Agg')
+
+from matplotlib import pyplot
+pyplot.ioff()
+
 import numpy
 ##import pandas
+import subprocess
 import scipy
 from Bio import SeqIO
 import scipy.sparse
-from matplotlib import pyplot
+
 import seaborn
 import csv
 import pickle
@@ -24,10 +32,14 @@ import shutil
 import os
 from collections import Iterable
 try:
-    import General_Tools
-except:
-    pass
+    from AlignmentPipeline import CallAligner
+    from tools import FindHomology
+##try:
+    from tools import General_Tools
 
+except:
+    print "Couldn't import General_Tools"
+import json
 import scipy.sparse
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -54,7 +66,7 @@ class SamLine():
         self.flag=int(row[1])
         self.contig=row[2]
         self.pos=int(row[3])
-        self.MapQ=int(row[4])
+        self.MapQ=float(row[4])
         self.cigar=row[5]
         self.rnext=row[6]
         self.pnext=int(row[7])
@@ -67,6 +79,77 @@ class SamLine():
         return [self.id, self.flag, self.contig, self.pos, int(self.MapQ), self.cigar,\
     self.rnext, self.pnext, self.tlen, self.seq, self.qual]+self.optional
 
+#------------------------------------------------------------------------------
+#           Full automatic curation pipeline
+#------------------------------------------------------------------------------
+
+def AutomaticCuration(fasta_file, fastq_file, outdir, specification_file):
+
+
+    spec_dict=General_Tools.ReadSpecificationFile(specification_file)
+
+    #Want to organize the output in a directory
+    General_Tools.MakeDir(outdir)
+    #Increase the lengths of the sequences too short for reads to align by
+    #concatenating monomers, and then trimming the ends until reads should align
+    #unambiguously
+    fasta_root=fasta_file.split('/')[-1]
+    modified_fasta="{0}/{1}".format(outdir, fasta_root)
+    LengthenShortRepeats(fasta_file, modified_fasta)
+    fasta_file=modified_fasta
+    #Run FindHomology
+    FindHomology.ClusterIndex(fasta_file, outdir+'/00_Communities',spec_dict['BLAST'], 80)
+    #Phase communities
+    PhaseCommunities(outdir+'/00_Communities', True)
+    #Build Bowtie2 index
+    phased_path="{0}/00_Communities_phased/phased_sequences.fa".format(outdir)
+    BuildIndex(spec_dict['Bowtie2'],phased_path, outdir+"/phased_index" )
+    #Run Bowtie2
+
+    aligned_dir=outdir+'/01_aligned'
+    print aligned_dir
+    sam_file="{0}/aligned.sam".format(aligned_dir)
+    General_Tools.MakeDir(aligned_dir)
+    err_file=aligned_dir+'/errlog.txt'
+    CallAligner(fastq_file,sam_file,outdir+"/phased_index", spec_dict['RepeatAlignmentParameters']+' --no-unal' ,str(int( spec_dict['threads'])),None, bowDir=spec_dict['Bowtie2'])
+##    err_handle.close()
+    #S
+    FASTA_file="{0}/aligned.fasta".format(aligned_dir)
+    Sam2FASTA(sam_file, FASTA_file, 1000)
+    #Run Blastn
+    blast_file="{0}/aligned.csv".format(aligned_dir)
+    RunBLAST(FASTA_file, phased_path, blast_file)
+    #Build BLAST matrix
+    matrix_file="{0}/aligned_matrix".format(aligned_dir)
+    BlastToScoreMatrix(blast_file, matrix_file)
+    matrix_file="{0}/aligned_matrix.npz".format(aligned_dir)
+    header_file="{0}/aligned_matrix_headers.pickle".format(aligned_dir)
+    comm_file="{0}/00_Communities_phased/communities.txt".format(outdir)
+    cur_file="{0}/02_curated".format(outdir)
+    #Curate the BLAST matrix
+    CurateRepeats(fasta_file,comm_file,  matrix_file, header_file,cur_file)
+    #Return summaries
+    curated_fasta="{0}/02_curated/curated.fa".format(outdir)
+    curated_index= outdir+"/curated_index"
+    BuildIndex(spec_dict['Bowtie2'],curated_fasta, curated_index )
+    curated_sam_file="{0}/curated.sam".format(aligned_dir)
+    CallAligner(fastq_file,curated_sam_file,curated_index, spec_dict['RepeatAlignmentParameters']+' --no-unal' ,str(int( spec_dict['threads'])),None, bowDir=spec_dict['Bowtie2'])
+    summary_file=outdir+"/summary.tsv"
+    UpdateMapq(curated_sam_file)
+    SummarizeSam(curated_sam_file,summary_file, comm_file,fasta_file)
+def BuildIndex(bowtie_path, inpath, outpath):
+    process=subprocess.Popen([bowtie_path+"-build", inpath, outpath])
+    process.communicate()
+
+def RunBLAST(query, subject,outfile):
+    parameters="blastn -dust no -soft_masking false -max_hsps 1 -word_size 11 -evalue .001 -perc_identity 80 -task blastn-short -outfmt".split(' ')
+    parameters+=['10 qseqid sseqid qstart qend pident evalue nident mismatch gaps gapopen bitscore']
+    parameters+=["-out", '{0}'.format(outfile),"-query", '{0}'.format(query), "-subject", '{0}'.format(subject)]
+    print parameters
+    proc=subprocess.Popen(parameters)
+##    print ("Aligning {0} to {1}...".format(inFile, Index ))
+
+    proc.communicate()
 
 
 #------------------------------------------------------------------------------
@@ -74,9 +157,9 @@ class SamLine():
 #------------------------------------------------------------------------------
 
 
-def BuildIndexFromFindHomology(indir, outfile, filter_by_internal_rpt=True):
+def PhaseCommunities(indir, filter_by_internal_rpt=True):
     in_root="/".join( indir.split('/')[:-1])
-    phased_folder=indir+'_phased_communities'
+    phased_folder=indir+'_phased'
     General_Tools.MakeDir(phased_folder)
     file_list=os.listdir(indir)
 
@@ -88,9 +171,11 @@ def BuildIndexFromFindHomology(indir, outfile, filter_by_internal_rpt=True):
         if ext!='fa': continue
         if f=='singletons.fa': continue
         PhaseFASTA(indir+'/'+f, phased_folder+'/'+f)
-    out_root='.'.join(outfile.split('.')[:-1])
     phased_files=os.listdir(phased_folder)
-
+    discarded_fasta=phased_folder+'/discarded_sequences.fa'
+    discarded_record=phased_folder+'/discarded_sequences.txt'
+    discarded_fasta_handle=open(discarded_fasta, 'w')
+    discarded_record_handle=open(discarded_record, 'w')
     #Join the phased communities into a single fasta
     phased_fasta=phased_folder+'/phased_sequences.fa'
     phased_handle=open(phased_fasta, 'w')
@@ -106,13 +191,18 @@ def BuildIndexFromFindHomology(indir, outfile, filter_by_internal_rpt=True):
         print "\t", med_score*1.25
         for i,seq in enumerate( sequences):
 
-            if filter_by_internal_rpt==True and rpt_scores[i]>=1.25*med_score:
+            if filter_by_internal_rpt==True and rpt_scores[i]>=1.25*med_score and len(seq.split("_"))>3:
                 print "Skipped: ", rpt_scores[i],seq
+                discarded_fasta_handle.write('>{0}\n'.format( seq))
+                discarded_fasta_handle.write('{0}\n'.format(sequences[ seq]))
+                discarded_record_handle.write('>{0}\t{1}\n'.format( seq,rpt_scores[i]))
                 continue
             phased_handle.write('>{0}\n'.format( seq))
             phased_handle.write('{0}\n'.format(sequences[ seq]))
 
     phased_handle.close()
+    discarded_fasta_handle.close()
+    discarded_record_handle.close()
 
 
 
@@ -274,9 +364,11 @@ def QuickMatch(query, subject, seed_count=100, kmer_size=8):
     for s in seed_intersection:
         distance=query.find(s)-subject.find(s)
         if distance<0:
-            distance=len(query)+distance
+            distance=len(subject)+distance
         displacements.append(distance)
-
+##    print displacements
+##    print displacements.count(149)
+##    print displacements.count(0)
     #Check the displacements in the reverse complement
 ##    for s in seed_intersection_rc:
 ##        distance=query_rc.find(s)-subject.find(s)
@@ -286,6 +378,7 @@ def QuickMatch(query, subject, seed_count=100, kmer_size=8):
 ##    print sorted( displacements)
     if len (displacements)>0:
         mode=scipy.stats.mode(displacements)
+        print mode
         mode, count=mode.mode[0], mode.count[0]
 
     else: mode,count=0,0
@@ -387,26 +480,26 @@ def GetSeq(ref, string=True):
     for rec in lib:
 ##        if refName.count(rec.name)==0: continue
         if string==True:
-            SeqLen[rec.name]=str( rec.seq).upper()
+            SeqLen[CleanName( rec.name)]=str( rec.seq).upper()
         else:
-            SeqLen[rec.name]=rec.seq
+            SeqLen[CleanName( rec.name)]=rec
     handle.close()
     return SeqLen
 
-def MatrixMapq(matrix, full=False):
+def MatrixMapq(matrix, full=False, passed=True):
 
     if matrix.shape[1]>2:
         AS=numpy.partition(matrix,-1,1)[:,-1]
         XS=numpy.partition(matrix,-2,1)[:,-2]
         extra_counts=( matrix==AS[:,None]).sum(1)
-        extra_counts=1
+##        extra_counts=1
         max_score=-6.*140/5
-        score=MapConf(AS,XS,70)/extra_counts
+        score=MapConf(AS,XS,70, passed)/extra_counts
     elif matrix.shape[1]==2:
         AS=numpy.partition(matrix,-1,1)[:,-1]
         XS=numpy.partition(matrix,-2,1)[:,-2]
         max_score=-6.*140/5
-        score=MapConf(AS,XS,70)
+        score=MapConf(AS,XS,70, passed)
 ##        score[((XS==0)*(AS!=0)).astype(bool)]=40
 
     else:
@@ -432,10 +525,14 @@ def MatrixMapq(matrix, full=False):
 ####    print score
 ##    return score
 
-def PrioritizeRepeats(mat):
-    best_hit=numpy.array( numpy.argmax(mat[1:,:],1))
-    score=numpy.array( MatrixMapq(mat[1:,:]))
-
+def PrioritizeRepeats(mat, uniquely_mapped):
+    if mat.shape[1]==1:
+        return numpy.array( [0])
+    best_hit=numpy.array( numpy.argmax(mat[:,:],1))
+    AS=numpy.max(mat[:,:],1)
+    score=numpy.array( MatrixMapq(mat[:,:]))
+##    scores=numpy.array( CountReads(mat,0))
+##    enrichment=scores+uniquely_mapped
 ##    max_score=numpy.max(score)
 ##    print max_score
 ##    print score
@@ -443,10 +540,10 @@ def PrioritizeRepeats(mat):
     enrichment=[]
     for k in range( mat.shape[1]):
         good_ind= (score>=.9)
-        bad_ind=(score<.9)*(score!=0)
-        good_count=(best_hit[good_ind]==k).sum()+mat[0,k]
+        bad_ind=(score<.9)*(AS>70)
+        good_count=(best_hit[good_ind]==k).sum()+uniquely_mapped[k]
         bad_count=(best_hit[bad_ind]==k).sum()
-        ratio=bad_count-good_count
+        ratio=bad_count/(good_count+1.)
         enrichment.append(ratio)
 #     print enrichment
     ranked_indices=numpy.argsort(enrichment)[::-1]
@@ -464,6 +561,80 @@ def PlotMatrix(mat):
     pyplot.show()
 
 
+##def RemoveRepeats(mat, iterations=312):
+##    print mat.shape
+##    unique_reads=numpy.array( mat[0,:].todense())[0]
+##    bool_array=numpy.array( [True]*mat.shape[1])
+##    noncluster_ind=numpy.array( (mat[:,:].sum(1)==0).T)[0]
+##    print noncluster_ind.shape
+##
+##    mat=mat[~noncluster_ind,:]
+##    mat=numpy.array(mat.todense())
+##    if mat.shape[0]>5000:
+##        mat=mat[::5,:]
+####    print mat
+##    print mat.shape
+##    height,width=mat.shape
+###     if (height*width)**.5<2200:
+###         mat=mat.todense()
+##    scores=ProbToScore(mat[1:,:])
+##    print scores.shape
+##    checked_list=set([])
+##    score_list=[]
+##    removed_list=[]
+##    ranked_indices= PrioritizeRepeats(mat[:,bool_array], unique_reads[bool_array])
+##    for i in range(min( iterations, len(bool_array))):
+##        max_score=0
+##        max_j=0
+####        ranked_indices= PrioritizeRepeats(mat[:,bool_array], unique_reads[bool_array])
+####        ranked_indices=numpy.where(bool_array==True)[0][ranked_indices]
+##        counter=0
+##        improved=False
+##        candidates=[]
+##        candidate_scores=[]
+##        for j in ranked_indices:
+##            if bool_array[j]==False: continue
+##            orig_val=numpy.copy( bool_array[j])
+##            original_score=sum(CountReads(mat[:,bool_array],scores[:,bool_array]))+unique_reads[bool_array].sum() #+ mat[0,bool_array].sum()
+##            if score_list==[]: score_list.append(original_score)
+##            print sum(CountReads(mat[:,bool_array],scores[:,bool_array])), unique_reads[bool_array].sum()
+##            bool_array[j]=False
+##            if sum(bool_array)!=0:
+##
+##                new_score=sum(CountReads(mat[:,bool_array],scores[:,bool_array]))+unique_reads[bool_array].sum()
+##            else:
+##                new_score=0
+##
+###             print new_score
+##            print "\t", sum(CountReads(mat[:,bool_array],scores[:,bool_array])), unique_reads[bool_array].sum()
+##
+##            if new_score>=max_score:
+##
+##                max_score=new_score
+##                max_ind=j
+##                improved=True
+####            if new_score>=original_score and counter>10:
+####                terminate=True
+####                bool_array[j]=True
+####                if improved==False:
+####                    max_score=new_score
+####                    max_ind=j
+####                break
+##            counter+=1
+##            bool_array[j]=True
+##
+##        print i, max_score, original_score
+##        removed_list.append(max_ind)
+##        bool_array[max_ind]=False
+##        if sum(bool_array)==0: break
+####        seaborn.heatmap (mat[1:,bool_array])
+####        print mat[::9,bool_array]
+####        pyplot.savefig("/data/mpm289/Dmel_reannotation/{0}.png".format(i))
+####        pyplot.show()
+####        pyplot.close()
+##        score_list.append(max_score)
+##    return removed_list, score_list
+
 def RemoveRepeats(mat, iterations=312):
     print mat.shape
     unique_reads=numpy.array( mat[0,:].todense())[0]
@@ -473,6 +644,16 @@ def RemoveRepeats(mat, iterations=312):
 
     mat=mat[~noncluster_ind,:]
     mat=numpy.array(mat.todense())
+    best_score=numpy.max(Score2PercIdent(mat),1 )
+    mat=mat[best_score>=.85]
+##    print best_score.shape
+##    print mat.shape
+##    print jabber
+    if mat.shape[0]>5000:
+        step=int (mat.shape[0]/10000.)+1
+        step=5
+        mat=mat[::step,:]
+
 ##    print mat
     print mat.shape
     height,width=mat.shape
@@ -483,16 +664,23 @@ def RemoveRepeats(mat, iterations=312):
     checked_list=set([])
     score_list=[]
     removed_list=[]
-    ranked_indices= PrioritizeRepeats(mat[:,bool_array])
+    ranked_indices= PrioritizeRepeats(mat[:,bool_array], unique_reads[bool_array])
     for i in range(min( iterations, len(bool_array))):
         max_score=0
         max_j=0
+##        ranked_indices= PrioritizeRepeats(mat[:,bool_array], unique_reads[bool_array])
+##        ranked_indices=numpy.where(bool_array==True)[0][ranked_indices]
+        counter=0
+        improved=False
+        candidates=[]
+        candidate_scores=[]
+        original_score=sum(CountReads(mat[:,bool_array],scores[:,bool_array]))+unique_reads[bool_array].sum() #+ mat[0,bool_array].sum()
+        if score_list==[]: score_list.append(original_score)
+        print sum(CountReads(mat[:,bool_array],scores[:,bool_array])), unique_reads[bool_array].sum()
         for j in ranked_indices:
             if bool_array[j]==False: continue
             orig_val=numpy.copy( bool_array[j])
-            original_score=sum(CountReads(mat[:,bool_array],scores[:,bool_array]))+unique_reads[bool_array].sum() #+ mat[0,bool_array].sum()
-            if score_list==[]: score_list.append(original_score)
-            print sum(CountReads(mat[:,bool_array],scores[:,bool_array]))#, mat[0,bool_array].sum()
+
             bool_array[j]=False
             if sum(bool_array)!=0:
 
@@ -501,31 +689,50 @@ def RemoveRepeats(mat, iterations=312):
                 new_score=0
 
 #             print new_score
-            print "\t", sum(CountReads(mat[:,bool_array],scores[:,bool_array]))#, mat[0,bool_array].sum()
-            if new_score>=original_score:
-                terminate=True
-                max_score=new_score
-                max_ind=j
-                break
+            print "\t", sum(CountReads(mat[:,bool_array],scores[:,bool_array])), unique_reads[bool_array].sum()
+            candidates.append(j)
+            candidate_scores.append(new_score)
             if new_score>=max_score:
 
                 max_score=new_score
                 max_ind=j
-
+                improved=True
+            if new_score>=original_score:
+                terminate=True
+                bool_array[j]=True
+                if improved==False:
+                    max_score=new_score
+                    max_ind=j
+                break
+            counter+=1
             bool_array[j]=True
+        #Begin removing:
+##        candidate_scores=numpy.array(candidate_scores)
+##        candidates=numpy.array(candidates)
+##        better_ind=numpy.where(candidate_scores >= max_score )
+##        for j in numpy.argsort()
+
         print i, max_score, original_score
         removed_list.append(max_ind)
         bool_array[max_ind]=False
         score_list.append(max_score)
+        if sum(bool_array)==0: break
+##        seaborn.heatmap (mat[1:,bool_array])
+##        print mat[::9,bool_array]
+##        pyplot.savefig("/data/mpm289/Dmel_reannotation/{0}.png".format(i))
+##        pyplot.show()
+##        pyplot.close()
+
     return removed_list, score_list
-def CountReads(matrix,scores):
+
+def CountReads(matrix,scores,cutoff=.8): # cutoff=.8):
     if matrix.shape[1]>1:
         best_hit=numpy.array( numpy.argmax(matrix[1:,:],1))
     else:
 
 
-
-        return [ScoreAlignments( matrix[1:].flatten()).sum()]
+        good_alignment=(Score2PercIdent( matrix[1:])>=cutoff)*1
+        return [ScoreAlignments( matrix[1:].flatten()*good_alignment.flatten()).sum()]
 #     print best_hit
 
     mapq=MatrixMapq(matrix[1:,:],True)
@@ -544,7 +751,8 @@ def CountReads(matrix,scores):
 #         if i==30: print jabber
 ##        print matrix[1:,:][best_hit==i,i].shape, mapq [best_hit==i].shape
 ##        print ScoreAlignments( matrix[1:,:][best_hit==i,i])
-        count= ( ScoreAlignments( matrix[1:,:][best_hit==i,i]) * mapq [best_hit==i]).sum()
+        good_alignment=(Score2PercIdent( matrix[1:,:][best_hit==i,i])>=cutoff)*1
+        count= ( ScoreAlignments( matrix[1:,:][best_hit==i,i])*good_alignment * mapq [best_hit==i]).sum()
         count_list.append(count)
 
     return count_list
@@ -561,21 +769,26 @@ def ProbToScore(scores, min_score=70, max_score=140):
     return score
 
 
-def ReadCommunityFile(infile):
+def ReadCommunityFile(infile, return_comments=False):
     inhandle=open(infile, 'r')
+    comments={}
     community_dict={}
     iteration=True
     val_list=[]
     key_list=[]
     for line in inhandle:
         if len(line.strip())==0: continue
+        if line.strip()[0]=='#':
+            comments[ key_list[-1]]=line.strip()[1:]
+            continue
         if line[0]=='\t':
             seq_names=[s.strip() for s in line[1:].split(',')]
             val_list.append(seq_names[:-1])
         else: key_list.append(line.split(',')[0])
 
-
-    return dict(zip(key_list, val_list))
+    if return_comments==False:
+        return dict(zip(key_list, val_list))
+    else: return dict(zip(key_list, val_list)), comments
 
 def GetIndices(seq_names, name_dict):
     indices=[]
@@ -594,6 +807,86 @@ def GetIndices(seq_names, name_dict):
             pass
     indices=numpy.array( indices)
     return indices, name_list
+
+def DetermineReassignments(original_matrix, bool_array, name_list):
+    original_matrix=original_matrix.copy()[1:,:]
+    original_matrix[Score2PercIdent(original_matrix)<.8]=0
+
+
+    final_matrix=original_matrix.copy()[:,bool_array]
+##    print final_matrix
+    reassigned_to_dict={}
+    reassigned_from_dict={}
+    final_mapq= MatrixMapq(final_matrix)
+##    print final_mapq
+    print name_list[bool_array]
+    if final_matrix.shape[1]>1:
+        final_hit=numpy.where(bool_array==True)[0][ numpy.argmax(final_matrix,1)]
+    else:
+        final_hit=numpy.array( [numpy.where(bool_array==True)[0][0]] *final_matrix.shape[0])
+    print final_hit
+    count=0
+    for read_ind in range(original_matrix.shape[0]):
+        best_score=numpy.max(original_matrix[read_ind,:])
+        new_score=Score2PercIdent( numpy.max(final_matrix[read_ind,:]))
+
+        hit_indices= numpy.where(original_matrix[read_ind,:]>=FindSecondaryScore(10, best_score))[0]
+        final_seq=name_list[ final_hit[read_ind]]
+        if new_score<.8:
+##            print new_score
+            final_seq='Discarded'
+            for ind in hit_indices:
+                original_hit=name_list[ind]
+
+
+                if reassigned_from_dict.has_key(original_hit)==False:
+                    reassigned_from_dict[original_hit]={}
+                if reassigned_from_dict[original_hit].has_key(final_seq)==False:
+                    reassigned_from_dict[original_hit][final_seq]=0.
+                reassigned_from_dict[original_hit][final_seq]+=1
+            continue
+
+        if final_mapq[read_ind]<.9:
+##            print final_matrix[read_ind]
+            final_seq='Multimapping'
+            for ind in hit_indices:
+                original_hit=name_list[ind]
+
+
+
+                if reassigned_from_dict.has_key(original_hit)==False:
+                    reassigned_from_dict[original_hit]={}
+                if reassigned_from_dict[original_hit].has_key(final_seq)==False:
+                    reassigned_from_dict[original_hit][final_seq]=0.
+                reassigned_from_dict[original_hit][final_seq]+=1
+            continue
+
+        if reassigned_to_dict.has_key(final_seq)==False:
+            reassigned_to_dict[final_seq]={}
+        try: reassigned_to_dict[final_seq]["Total"]+=1
+        except:reassigned_to_dict[final_seq]["Total"]=1
+        for ind in hit_indices:
+            original_hit=name_list[ind]
+
+            if reassigned_to_dict[final_seq].has_key(original_hit)==False:
+                reassigned_to_dict[final_seq][original_hit]=0
+            reassigned_to_dict[final_seq][original_hit]+=1
+
+            if reassigned_from_dict.has_key(original_hit)==False:
+                reassigned_from_dict[original_hit]={}
+            if reassigned_from_dict[original_hit].has_key(final_seq)==False:
+                reassigned_from_dict[original_hit][final_seq]=0.
+            reassigned_from_dict[original_hit][final_seq]+=1
+
+
+    #finalize:
+
+    for key in reassigned_from_dict:
+        reassigned_from_dict[key]["Total"]=sum(reassigned_from_dict[key].values())
+    return reassigned_to_dict, reassigned_from_dict
+
+
+
 
 def CurateRepeats(fasta_file, community_file, blast_output, repeat_names, outdir):
     General_Tools.MakeDir(outdir)
@@ -615,8 +908,8 @@ def CurateRepeats(fasta_file, community_file, blast_output, repeat_names, outdir
 
     for community in sorted( community_dict):
         if community=='Singletons': continue
-        if community=='Community 1': continue
-        if community!='Community 37': continue
+##        if community=='Community 1': continue
+##        if community=='Community 4': continue
         print "Curating {0}...".format( community)
         namelist=numpy.array( community_dict[community])
         try:
@@ -631,36 +924,64 @@ def CurateRepeats(fasta_file, community_file, blast_output, repeat_names, outdir
         namelist=numpy.array(namelist)
 
         print indices
-        community_matrix=alignment_matrix[:, indices]
+
+
         try:
+            best_score=numpy.array(  alignment_matrix.max(1).T.todense())[0]
+            community_matrix=alignment_matrix[:, indices]
+            best_score_in_community=numpy.array(  community_matrix.max(1).T.todense())[0]
+            match_within_community=best_score==best_score_in_community
+            community_matrix=community_matrix[match_within_community,:]
+            noncluster_ind=numpy.array( (community_matrix[:,:].sum(1)==0).T)[0]
             removed_indices,objective_function=RemoveRepeats(community_matrix, len(indices))
+
+
+            pyplot.plot(objective_function,c='purple',alpha=.7)
+            pyplot.savefig(outdir+'/{0}.png'.format(community))
+            pyplot.close()
+            objective_function=objective_function
+            max_score=numpy.max(objective_function)
+            max_ind=numpy.where(objective_function>=max_score)[0][-1]
+            print max_ind
+
+            mask_array=numpy.array( [True]*community_matrix.shape[1])
+            mask_array[removed_indices[:max_ind]]=False
+            community_matrix=community_matrix[~noncluster_ind,:]
+            community_matrix=numpy.array(community_matrix.todense())
+            best_score=numpy.max(Score2PercIdent(community_matrix),1 )
+            community_matrix=community_matrix[best_score>=.8,:]
+            if community_matrix.shape[0]*community_matrix.shape[1]<=1e6:
+                numpy.save(outdir+'/{0}_matrix.npy'.format(community), community_matrix)
+                numpy.save(outdir+'/{0}_mask.npy'.format(community), mask_array)
+                numpy.save(outdir+'/{0}_names.npy'.format(community), namelist)
+            else:
+                numpy.save(outdir+'/{0}_matrix.npy'.format(community), community_matrix[::10,:])
+                numpy.save(outdir+'/{0}_mask.npy'.format(community), mask_array)
+                numpy.save(outdir+'/{0}_names.npy'.format(community), namelist)
+            comm_handle=open( outdir+'/{0}.fa'.format(community), 'w')
+            reassigned_to, reassigned_from=DetermineReassignments(community_matrix, mask_array, namelist)
+
+            print outdir+'/{0}_reassigned_to.json'.format(community)
+            to_handle=open( outdir+'/{0}_reassigned_to.json'.format(community), 'w')
+            json.dump(reassigned_to, to_handle, indent=4, sort_keys=True)
+            to_handle.close()
+            from_handle=open( outdir+'/{0}_reassigned_from.json'.format(community), 'w')
+            json.dump(reassigned_from, from_handle, indent=4, sort_keys=True)
+            from_handle.close()
+            for v in namelist[mask_array]:
+                try:
+                    outhandle.write('>{0}\n'.format(v))
+                    outhandle.write( sequences[CleanName( v)]+'\n')
+                    comm_handle.write('>{0}\n'.format(v))
+                    comm_handle.write( sequences[CleanName(v)]+'\n')
+                except:
+
+                    pass
+            comm_handle.close()
+##        break
         except:
+##            removed_indices,objective_function=RemoveRepeats(community_matrix, len(indices))
             continue
-
-        pyplot.plot(objective_function,c='purple',alpha=.7)
-        pyplot.savefig(outdir+'/{0}.png'.format(community))
-        pyplot.close()
-        objective_function=objective_function[1:]
-        max_score=numpy.max(objective_function)
-        max_ind=numpy.where(objective_function>=max_score)[0][-1]+1
-        print max_ind
-
-        mask_array=numpy.array( [True]*community_matrix.shape[1])
-        mask_array[removed_indices[:max_ind]]=False
-
-        comm_handle=open( outdir+'/{0}.fa'.format(community), 'w')
-
-        for v in namelist[mask_array]:
-            try:
-                outhandle.write('>{0}\n'.format(v))
-                outhandle.write( sequences[CleanName( v)]+'\n')
-                comm_handle.write('>{0}\n'.format(v))
-                comm_handle.write( sequences[CleanName(v)]+'\n')
-            except:
-
-                pass
-        comm_handle.close()
-
 
 
 
@@ -668,7 +989,7 @@ def CurateRepeats(fasta_file, community_file, blast_output, repeat_names, outdir
 
 
 
-def BlastToScoreMatrix(infile, outfile, name_pickle):
+def BlastToScoreMatrix(infile, outfile):
 ##    name_handle=open(name_pickle, 'rb')
     class BlastRow():
         def __init__(self, row):
@@ -1025,9 +1346,9 @@ def UpdateMapq(sam_file):
         XS=-1
         for col in row[11:]:
             if col[:2]=='AS':
-                AS=140.+float(col.split(':')[-1])*5/6.
+                AS=140.+float(col.split(':')[-1])
             if col[:2]=='XS':
-                XS=140.+float(col.split(':')[-1])*5/6.
+                XS=140.+float(col.split(':')[-1])
         if XS!=-1:
             try:
                 mapq=MapConf(AS,XS,70,passed= False)
@@ -1037,7 +1358,7 @@ def UpdateMapq(sam_file):
                 print jabber
             row[4]=mapq
         else:
-            row[4]=1.
+            row[4]=40
         outtable.writerow(row)
     sam_handle.close()
     outhandle.close()
@@ -1046,7 +1367,8 @@ def UpdateMapq(sam_file):
 
 def RecomputeBlastAlignmentScore(line, rlen):
     overhang=rlen -(line.qend-line.qstart+1)
-    score=2*line.matches- 5*(line.gapopen)-3*(line.mismatches+ overhang+line.gapext)
+##    score=2*line.matches- 5*(line.gapopen)-3*(line.mismatches+ overhang+line.gapext)
+    score=rlen*2-5.5*(line.gapopen)-2.5*( overhang+line.gapext)-6.5*line.mismatches
     return max(0, score)
 ##def MapConf(AS,XS, score_min=-150.):
 ##    AS/=-6
@@ -1076,45 +1398,69 @@ def RecomputeBlastAlignmentScore(line, rlen):
 ##        best_diff[best_diff<.07]=.1
 ##        return best_diff
 
+def Score2PercIdent(AS,read_length=70.,):
+    AS_mismatches=(read_length*2-AS)/5.
+    AS_ident=1.- AS_mismatches/read_length
+    return AS_ident
+
+def FindSecondaryScore(mapq, AS, read_length=70.):
+    score=.04*mapq/10.
+    AS_mismatches=(read_length*2-AS)/5.
+    AS=1.- AS_mismatches/read_length
+    XS_ident=-.5*((score*(-4*AS+score+4))**.5)+AS-score/2.
+    XS_mismatches=read_length*(1-XS_ident)
+    XS=2*read_length- 5*XS_mismatches
+    return XS
+
 def MapConf(AS,XS, read_length=70., passed=True):
     AS_mismatches=(read_length*2-AS)/5.
     XS_mismatches=(read_length*2-XS)/5.
 
     AS_ident=1.- AS_mismatches/read_length
     XS_ident=1.- XS_mismatches/read_length
-    try:
+    if type(AS_ident)==float and type(XS_ident)==float:
         if AS_ident!=XS_ident:
-            best_diff=abs( XS_ident-AS_ident)
-            worst_diff=1.-XS_ident
-            score=best_diff**2/worst_diff
+                best_diff=abs( XS_ident-AS_ident)
+                worst_diff=1.-XS_ident
+                score=best_diff**2/worst_diff
         else:
             score=0
-    except:
-        best_diff=abs( XS_ident-AS_ident)
+        best_diff=max(0, AS_ident- XS_ident)
+        mapq= (score/.04)*10
+        mapq=max(2,mapq)
+        mapq=min(40, mapq)
+    else:
+        best_diff=AS_ident-XS_ident
+        best_diff[best_diff<0]=0
+
         worst_diff=1.-XS_ident
-        score=best_diff**2/worst_diff
+        score=best_diff* (best_diff  /worst_diff)
         score[numpy.isnan( score)]=0.
-##    return score
-##    print best_diff
+        mapq= (score/.04)*10
+        mapq[mapq>40]=40.
+        mapq[mapq<2]=2
+
+
     if passed==False:
-        return score
+        return mapq
     else:
         try:
-            if score>=.07: return 40
+            if mapq>=10: return 40
             else: return .1
         except:
-            score[score>=.07]=40
-            score[score<.07]=.1
-            return score
+            mapq[mapq>=10]=40
+            mapq[mapq<10]=.1
+            return mapq
 def ScoreAlignments(AS, read_length=70.):
     AS_mismatches= (read_length*2-AS)/5.
     AS_ident= AS_mismatches/read_length
+##    print AS_ident
     try:
-        diff=max( (0, .25-AS_ident))/.1
+        diff=max( (0, .25-AS_ident))/.05
     except:
-        diff=(.2-AS_ident)/.1
+        diff=(.25-AS_ident)/.05
         diff[diff<0]=0
-    return 1-numpy.exp(-1* diff)
+    return (1-numpy.exp(-1* diff))
 
 def bt2_mapq_end2end(AS, XS=None, scMin=-50):
     '''scMin = minScore'''
@@ -1223,10 +1569,10 @@ def bt2_mapq_end2end(AS, XS=None, scMin=-50):
 #------------------------------------------------------------------------------
 #               Functions for converting file types
 
-def BuildScoreMatrix(infile, outfile,frac=1):
+def Sam2FASTA(infile, outfile, target_cvg=50,target_frac=4., tag=False):
     inhandle=open(infile, 'r')
     intable=csv.reader(inhandle, delimiter='\t')
-    outhandle=open( outfile+'.fa', 'w')
+    outhandle=open( outfile, 'w')
     est_mapq=[]
     prev_mapq=[]
     pos=[]
@@ -1236,8 +1582,34 @@ def BuildScoreMatrix(infile, outfile,frac=1):
     contig_dict={}
     col_count=0
     read_count=0
-
+    total_dict={}
     uniquely_mapped={}
+    len_dict={}
+    #Count how many reads align to each repeat
+    for row in intable:
+        if row[0][0]=='@':
+            if row[0][1:]=='SQ':
+                name=':'.join( row[1].split(':')[1:])
+                length=int( row[-1].split(':')[1])
+                len_dict[name]=length
+                contig_dict[name]=col_count
+                uniquely_mapped[name]=0.
+                col_count+=1
+            continue
+        line=SamLine(row)
+        if line.contig=='*':continue
+        try: total_dict[line.contig]+=1.
+        except: total_dict[line.contig]=1.
+    inhandle.close()
+
+    #Compute coverage
+    for key in total_dict:
+        total_dict[key]*=70
+        total_dict[key]/=len_dict[key]
+
+    count_dict={}
+    inhandle=open(infile, 'r')
+    intable=csv.reader(inhandle, delimiter='\t')
     for row in intable:
         if row[0][0]=='@':
             if row[0][1:]=='SQ':
@@ -1252,16 +1624,34 @@ def BuildScoreMatrix(infile, outfile,frac=1):
         new_line.seq=new_line.seq[:70]
         new_line.qual=new_line.qual[:70]
         read_count+=1
-        if read_count%frac!=0: continue
-        outhandle.write('>{0}\n'.format(read_count))
+        try: count_dict[line.contig]+=1
+        except: count_dict[line.contig]=0
+        if total_dict[line.contig]>target_cvg:
+            frac=ComputeFraction(total_dict[line.contig], target_cvg, target_frac)
+            if frac>1:
+                change_in_mod=(count_dict[line.contig])%frac-(count_dict[line.contig]-1)%frac
+                if change_in_mod>0: continue
+
+        if tag==False:
+            outhandle.write('>{0}\n'.format(read_count))
+        else:
+            for col in row[11:]:
+                if col[:2]=='AS':
+                    AS=float(col.split(':')[-1])
+            outhandle.write('>{0}_{1}\n'.format(read_count,AS))
         outhandle.write('{0}\n'.format(new_line.seq))
-    outbase=".".join(outfile.split(".")[:-1])
+    outbase=".".join(outfile.split("."))
     outhandle_1=open( '{0}_headers.pickle'.format(outbase), 'wb')
     pickle.dump(contig_dict, outhandle_1)
     outhandle_1.close()
 
-def SummarizeSam(infile, outfile):
+def ComputeFraction(total,targ_cvg=40, targ_frac=4.):
+    if total>targ_cvg:
+        return total/( targ_cvg+ (total-targ_cvg)/targ_frac)
+    else: return 1
 
+def SummarizeSam(infile, outfile, community_file, seq_file):
+    sequences=GetSeq(seq_file)
     sam_handle=open(infile, 'r')
     sam_table=csv.reader(sam_handle, delimiter='\t')
 
@@ -1269,7 +1659,11 @@ def SummarizeSam(infile, outfile):
     outhandle=open(outfile, 'w')
     outtable=csv.writer(outhandle, delimiter='\t')
     rpt_dict={}
-
+    communities=ReadCommunityFile(community_file)
+    inv_communities={}
+    for key in communities:
+        for val in communities[key]:
+            inv_communities[val]=key
     for row in sam_table:
         if row[0][0]=="@":
 
@@ -1281,20 +1675,268 @@ def SummarizeSam(infile, outfile):
         if rpt_dict.has_key(row[2])==False:
             rpt_dict[row[2]]=[0.,0.]
         mapq=float(row[4])
-        if mapq>=.07:
+        if mapq>=10:
             rpt_dict[row[2]][0]+=1.
         else:
             rpt_dict[row[2]][1]+=1.
     sam_handle.close()
     for key in sorted(rpt_dict.keys()):
-        outtable.writerow([key, rpt_dict[key][0]+rpt_dict[key][1] , rpt_dict[key][0], rpt_dict[key][1]])
+        repitition=ComputeNeighborDistance(sequences[key], unbiased=True)
+        outtable.writerow([key, inv_communities[key], repitition, rpt_dict[key][0]+rpt_dict[key][1] , rpt_dict[key][0], rpt_dict[key][1]])
     outhandle.close()
+
+def LooksLikeAnnotation(name):
+    answer=False
+    parts=name.split('_')
+    if len(parts)>3:
+        if parts[-3][:3]=='Chr' and parts[-2][:2]=='CN' and parts[-1][:2]=='ID':
+            answer=True
+    return answer
+
+def Rename(fasta, communities,  outfile):
+    sequences=GetSeq(fasta)
+##    annot_sequences=GetSeq(annote_fasta)
+    community_dict,comment_dict =ReadCommunityFile(communities, True)
+    inv_community={}
+    for key in community_dict:
+        for entry in community_dict[key]:
+            inv_community[entry]=key
+    new_sequences={}
+    DM359=1
+    chrom_counter={}
+    rename_counter={}
+    key_counter={}
+    for key in sequences:
+        try:
+            key_counter[key]+=1
+        except:
+            key_counter[key]=1
+
+        #Rename entries if comments in the community dictionary says to do so
+        if LooksLikeAnnotation(key)==True:
+            community=inv_community[key]
+            if comment_dict.has_key(community)==True:
+                new_name=comment_dict[community]
+                if rename_counter.has_key(new_name)==False:
+                    rename_counter[new_name]=0
+                rename_counter[new_name]+=1
+                name=key.split("_")
+                name[0]="{0}-{1}".format(new_name, rename_counter[new_name])
+                new_sequences['_'.join(name)]=sequences[key]
+                inv_community['_'.join(name)]=community
+                key_counter['_'.join(name)]=1
+                continue
+            name=key.split("_")
+            if name[0]=="Complex" or name[0]=="Unannot":
+                chrom=name[1].split('=')[-1]
+                if chrom_counter.has_key(name[0])==False:
+                    chrom_counter[name[0]]={}
+                if chrom_counter[name[0]].has_key(chrom)==False:
+                    chrom_counter[name[0]][chrom]=1
+                chrom_counter[name[0]][chrom]+=1
+
+
+                name[0]="{0}-{1}-{2}".format( '_'.join(name[:-3]), chrom,chrom_counter[name[0]][chrom])
+
+                new_sequences['_'.join(name)]=sequences[key]
+                inv_community['_'.join(name)]=community
+                key_counter['_'.join(name)]=1
+                continue
+        print key
+        new_sequences[key]=sequences[key]
+    outhandle=open(outfile, 'w')
+    for key in sorted(new_sequences.keys()):
+        name=key
+        seq=new_sequences[name]
+##        if inv_community.has_key(name):
+        if LooksLikeAnnotation(name):
+            if key_counter[name]==1:
+                new_name='_'.join(name.split("_")[:-3]).strip()
+##                print new_name
+                outhandle.write(">{0}\t{1}\n".format(new_name,"_".join( name.split("_")[-3:])))
+            else:
+                new_name="{0}-{1}".format('_'.join(name.split("_")[:-3]),key_counter[name])
+##                print new_name
+                outhandle.write(">{{0}\t{1}\n".format(new_name.strip(),"_".join( name.split("_")[-3:])))
+            outhandle.write("{0}\n".format(seq))
+        else:
+            print name
+            outhandle.write(">{0}\n".format(name.strip()))
+            outhandle.write("{0}\n".format(seq))
+    outhandle.close()
+
+def FixNames(ref, outfile, orig):
+    orig_seq=GetSeq(orig)
+    base_names=[s.split('_')[0] for s in orig_seq.keys()]
+
+    outhandle=open(outfile, 'w')
+    handle=open(ref, 'r')
+    lib=SeqIO.parse(handle, 'fasta')
+    seq_holder={}
+    seq_counter={}
+    for rec in lib:
+        name=CleanName(rec.name)
+        seq=str( rec.seq).upper()
+
+        if seq_holder.has_key(name)==False:
+            seq_holder[name]=0
+        seq_holder[name]+=1
+        if seq_holder[name]>1:
+            seq_counter[name]=0
+    handle.close()
+    handle=open(ref, 'r')
+    lib=SeqIO.parse(handle, 'fasta')
+    for rec in lib:
+
+        name=CleanName(rec.name)
+        seq=str( rec.seq).upper()
+
+        if seq_holder[name]>1:
+            seq_counter[name]+=1
+            appendor="-{1}".format(name,seq_counter[name])
+        else:
+            appendor=''
+        if len( rec.description.split('\t'))>1:
+            description=rec.description.split('\t')[-1]
+            if base_names.count( name.split('_')[0])>0:
+                name+='-derived'
+        else:
+            description=''
+        outhandle.write(">{0}{1}\t{2}\n".format(name,appendor, description))
+        outhandle.write("{0}\n".format(seq))
+    handle.close()
+    outhandle.close()
+
+def Compare(old, new, out):
+    new_seq=set(GetSeq(new).keys())
+    old_seq=set(GetSeq(old).keys())
+    outhandle=open(out, 'w')
+    diff=old_seq-new_seq
+    for d in diff:
+        outhandle.write("{0}\n".format(d))
+    outhandle.close()
+
+
+def LengthenShortRepeats(infasta,outfasta):
+
+    sequences=GetSeq(infasta, False)
+    outhandle=open(outfasta, 'w')
+    for entry in sequences:
+        seq=str( sequences[entry].seq)
+        if len(seq)<100:
+            seq=LengthenSequence( seq)
+        if len(sequences[entry].description.split('\t'))>1:
+            desc='\t'.join( sequences[entry].description.split('\t')[1:])
+            outhandle.write('>{0}\t{1}\n'.format(entry,sequences[entry].description ))
+        else:
+            outhandle.write('>{0}\n'.format(entry))
+        outhandle.write('{0}\n'.format( seq))
+    outhandle.close()
+
+##def DetermineTargetLength(sequence, read_len=70):
+##    length=float(len(sequence))
+##    copies_per_read= read_len/ length
+##    if length<read_len:
+##        new_seq=sequence*int(numpy.ceil(copies_per_read))
+##        if read_len/float(len(new_seq))>.7:
+##            new_seq+=sequence[:int(length/2)]
+##    return new_seq
+
+def LengthenSequence(sequence, read_len=70):
+    length=float(len(sequence))
+    copies_per_read= read_len/ length
+    print copies_per_read
+    large_sequence=sequence*3*int(numpy.ceil( copies_per_read))
+    print len( large_sequence)
+    #Get all reads
+    read_set=set()
+    for i in range(len(large_sequence)-read_len+1):
+        read_set.add(large_sequence[i:i+read_len])
+    left=False
+    for i in range(len(large_sequence)):
+        count_list=CountOccurrences(large_sequence, read_set)
+        if max(count_list)==1 and min(count_list)==1: break
+        if left==False:
+            large_sequence=large_sequence[1:]
+        else:
+            large_sequence=large_sequence[:-1]
+
+    return large_sequence
+
+def CountOccurrences(sequence, init_set):
+    init_set=list(init_set)
+    read_len=len(init_set[0])
+    count_dict=dict(zip(init_set, [0]*len(init_set)))
+    for i in range(len(sequence)-read_len+1):
+        try: count_dict[ sequence[i:i+read_len]]+=1
+        except: count_dict[ sequence[i:i+read_len]]=1
+    return count_dict.values()
+
+
+    return read_set
+
+def TransferDescriptions(origfile, newfile):
+    orig_handle=open(origfile, 'r')
+    descript_dict={}
+    for line in orig_handle:
+        if line[0]!='>': continue
+        line=line.strip()
+        parts=line[1:].split("\t")
+        if len(parts)>1:
+            name=parts[0]
+            desc="\t".join(parts[1:])
+            descript_dict[name]=desc
+            print name, desc
+    newfile_root='.'.join(newfile.split('.')[:-1])
+    outfile=newfile_root+'_descriptions.fa'
+    newhandle=open(newfile, 'r')
+    outhandle=open(outfile, 'w')
+    for line in newhandle:
+        line=line.strip()
+        if line=='': continue
+        if line[0]=='>':
+            parts=line[1:].split("\t")
+            name=parts[0].strip()
+            print name, descript_dict.has_key(name)
+            if len(parts)>1:
+                outhandle.write ( "{0}\n".format(line))
+                continue
+            if descript_dict.has_key(name):
+                print name, descript_dict[name]
+                outhandle.write('>{0}\t{1}\n'.format(name, descript_dict[name]))
+            else:
+                outhandle.write("{0}\n".format(line))
+        else:
+            outhandle.write("{0}\n".format(line))
+    outhandle.close()
+    newhandle.close()
+
+
+
 def main(argv):
     param={}
     for i in range(1, len(argv), 2):
         param[argv[i]]= argv[i+1]
     print param
     if param=={}: return()
+    if param.has_key('-copy_descriptions'):
+        TransferDescriptions(param['-copy_descriptions'], param['-new'])
+        return
+    if param.has_key('-fix'):
+        FixNames(param['-fix'], param['-o'], param['-orig'])
+        return
+    if param.has_key('-new'):
+        Compare(param['-old'],param['-new'], param['-o'])
+        return
+    if param.has_key('-rename'):
+        Rename(param['-rename'],param['-comm'], param['-o'])
+        return
+    if param.has_key('-curate'):
+        AutomaticCuration(param['-curate'],param['-fq'], param['-o'], param['-spec'])
+        return
+    if param.has_key('-summ'):
+        SummarizeSam(param['-summ'],param['-o'], param['-comm'])
+        return()
 
     if param.has_key('-comm'):
         CurateRepeats(param['-fa'],param['-comm'], param['-blast'], param['-names'],param['-out'])
@@ -1303,14 +1945,12 @@ def main(argv):
     if param.has_key('-fa')==True:
         if param.has_key('-frac')==True: frac=int(param['-frac'])
         else: frac=1
-        BuildScoreMatrix(param['-sam'], param['-fa'],frac)
+        BuildScoreMatrix(param['-sam'], param['-fa'],frac, True)
         return()
     if param.has_key('-phase')==True:
         BuildIndexFromFindHomology(param['-phase'], param['-o'])
         return ()
-    if param.has_key('-summ'):
-        SummarizeSam(param['-summ'],param['-o'])
-        return()
+
     if param.has_key('-mapq'):
         UpdateMapq(param['-mapq'])
         return()

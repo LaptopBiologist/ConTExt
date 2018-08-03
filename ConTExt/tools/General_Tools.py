@@ -15,7 +15,58 @@ import numpy
 import gzip
 import csv
 import os
+import sys
+import scipy.sparse
+from collections import Iterable
 
+class SparseArray():
+
+    def __init__(self):
+        self.row_indices=[]
+        self.col_indices=[]
+        self.data=[]
+        self.row_count=0
+        self.col_count=0
+        self.shape=(self.row_count,self.col_count)
+
+    def add_row(self, row):
+        nonzero_ind=numpy.where(row!=0)[0]
+        self.col_indices+=list(nonzero_ind)
+        self.row_indices+=[row_count]
+        if isinstance(row, numpy.array) is True:
+            self.data+=row[nonzero_ind]
+        else:
+            self.data+=list(numpy.array(row)[nonzero_ind])
+        self.col_count=max(col_count, numpy.max(nonzero_ind))
+        self.row_count+=1
+
+    def add_col(self, col):
+        nonzero_ind=numpy.where(col!=0)[0]
+        self.row_indices+=list(nonzero_ind)
+        self.col_indices+=[col_count]
+        if isinstance(col, numpy.array) is True:
+            self.data+=col[nonzero_ind]
+        else:
+            self.data+=list(numpy.array(col)[nonzero_ind])
+        self.row_count=max(row_count, numpy.max(nonzero_ind))
+        self.col_count+=1
+
+    def add_cell(self, data,row, col):
+        if isinstance(data, Iterable) is True:
+            self.data+=list(data)
+            self.row_indices+=list(row)
+            self.col_indices+=list(col)
+        if isinstance(data, Iterable) is False:
+            self.data.append(data)
+            self.row_indices.append(row)
+            self.col_indices.append(col)
+
+    def construct_coo(self):
+        self.matrix=scipy.sparse.coo_matrix((self.data,(self.row_indices, self.col_indices)))
+    def construct_csr(self):
+        self.matrix=scipy.sparse.csr_matrix((self.data,(self.row_indices, self.col_indices)))
+    def construct_csc(self):
+        self.matrix=scipy.sparse.csc_matrix((self.data,(self.row_indices, self.col_indices)))
 class cluster():
     def __init__(self, row , Seq1=0, Seq2=1, Quad1=2, Quad2=3,\
     ID=0, feature=4, jxn_x=5, jxn_y=6, range_x=7 , range_y=8, count=9, x_list=10,\
@@ -419,8 +470,43 @@ def ReadReferenceSummaries(infile):
 
     return entry_dict, cons_dict, ref_dict
 
-def main():
-    pass
+def ConTExt2Fastq(infile, outfile):
+    inhandle=open(infile,'r')
+    intable=csv.reader(inhandle, delimiter='\t')
+    outhandle=open(outfile, 'w')
+    count=0
+    intable.next()
+    for row in intable:
+        count+=1
+        name1='r{0}.1'.format(count)
+        Seq1=row[4]
+        Qual1=row[5]
+        name2='r{0}.2'.format(count)
+        Seq2=row[10]
+        Qual2=row[11]
+
+        read1='@{0}\n{1}\n+\n{2}\n'.format(name1, Seq1, Qual1)
+        read2='@{0}\n{1}\n+\n{2}\n'.format(name2, Seq2, Qual2)
+        outhandle.write(read1)
+        outhandle.write(read2)
+    outhandle.close()
+    inhandle.close()
+
+
+def main(argv):
+    param={}
+    print argv
+    if len(argv)==1: return
+
+    for i in range(1, len(argv), 2):
+        param[argv[i]]= argv[i+1]
+    print param
+
+    if param=={}:
+        return
+    if param.has_key('-con'):
+        ConTExt2Fastq(param['-con'], param['-fq'])
+        return()
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv)
