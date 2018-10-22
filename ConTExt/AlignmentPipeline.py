@@ -42,9 +42,18 @@ import gzip
 import subprocess
 import shutil
 
-import tools.AlignmentConverter as AlignmentConverter
-from tools.General_Tools import *
+from subprocess import PIPE
+try:
+    import tools.AlignmentConverter as AlignmentConverter
+    from tools.General_Tools import *
 
+except:
+    print "Failed to import necessary tools modules."
+try:
+    from CurateRepeats import MapConf
+    from CurateRepeats import Score2PercIdent
+except:
+    pass
 from numpy import array
 from scipy import stats
 from Bio import Seq
@@ -149,7 +158,9 @@ def DeterminePHRED(infile):
             break
     print max_count, min_count
     return phred
-def FindInput(inDir):
+
+
+def FindInput(inDir,exclude=[]):
     """Examines all files in the input directory to identify paired fastq files.
     Recognizes files with the extensions *.fq and *.fastq, and will recognize
     gzipped files if they have the extension *.gz. Paired-end datasets must have a
@@ -157,6 +168,7 @@ def FindInput(inDir):
         <sample_name>_{1/2}.{fastq/fq}(.gz)
     Returns a list of sample names, and a dictionary which stores the appropriate
     extension for each sample."""
+    print exclude
     FList=os.listdir(inDir)
     FQList=[]       #Hold all fastq files
     TargetList=[]   #Hold the filename prior the extension
@@ -164,6 +176,17 @@ def FindInput(inDir):
 
     #find all fastq files
     for f in FList:
+        skip=False
+        for exc in exclude:
+##            print exc
+            if exc=='': continue
+##            print f.find(exc)
+            if f.find(exc)!=-1:
+
+                skip=True
+                break
+        print f, skip
+        if skip==True: continue
         ext=f.split('.')
         if len(set([ext[-1]])&FastQext)!=0:
             FQList.append(f)
@@ -331,7 +354,7 @@ def ShortenReads(length, inDir, root, ends, logfile, rename=False, GemCode=False
     return count, total
 
 
-def CallAligner(inFile, outFile, Index, cutoff, seedLength, threads, runlog, phred=33, bowDir=''):
+def CallAligner(inFile, outFile, Index,alignment_parameters , threads, runlog=None, phred=33, bowDir=''):
     """Calls BowTie2. Function parameters correspond to :
         threads: NUmber of processes to run in parallel
         phred: PHRED quality encoding of the data,
@@ -349,9 +372,10 @@ def CallAligner(inFile, outFile, Index, cutoff, seedLength, threads, runlog, phr
 ##    os.chdir(bowDir)
     logname='.'.join(outFile.split('.')[:-1])+'_bowtie_log.txt'
     logfile=open(logname, 'w')
-
-
-    proc=subprocess.Popen([bowDir, '-p', threads , '-'+str(Phred[ phred]),'--reorder', '--score-min', 'L,0,'+ str(cutoff), '-L', str(seedLength),  '-x', Index, '-U', inFile, '-S', outFile], stderr=logfile)
+    alignment_parameter_list=alignment_parameters.split(' ')
+    alignment_command=[bowDir,'-p', threads, '--reorder' ]+ alignment_parameter_list+['-x', Index, '-U', inFile, '-S', outFile]
+    print alignment_command
+    proc=subprocess.Popen(alignment_command,stdin=PIPE, stdout=PIPE, stderr=logfile)
     print ("Aligning {0} to {1}...".format(inFile, Index ))
     time.sleep(.5)
     crash=CheckForCrash(logname)
@@ -364,9 +388,10 @@ def CallAligner(inFile, outFile, Index, cutoff, seedLength, threads, runlog, phr
     logfile.close()
 
     logfile=open(logname, 'r')
-    for l in logfile:
-        runlog.write(l)
-    runlog.write("Run failed="+str(run_failed)+"/n")
+    if runlog!=None:
+        for l in logfile:
+            runlog.write(l)
+        runlog.write("Run failed="+str(run_failed)+"/n")
     logfile.close()
 
     return (run_failed)
@@ -789,17 +814,19 @@ def GetOutputLine(FirstRow, SecondRow):
     length=len(FirstRow[9])
     MD_1=GetMDString(FirstRow)
     QD_1=GetQDString(FirstRow)
+    MAPQ_1,A1,X1=UpdateMapQ(FirstRow)
     if FirstRow[5]!=str(length)+'M':
         parsed=ParseCIGAR(FirstRow[5])
         length=parsed['M']+parsed['D']
     FirstHalf=[FirstRow[2], FirstRow[1], int(FirstRow[3]), int(FirstRow[3])+length, FirstRow[9], FirstRow[10]]
     MD_2=GetMDString(SecondRow)
     QD_2=GetQDString(SecondRow)
+    MAPQ_2,A2,X2=UpdateMapQ(SecondRow)
     length=len(SecondRow[9])
     if SecondRow[5]!=str(length)+'M':
         parsed=ParseCIGAR(SecondRow[5])
         length=parsed['M']+parsed['D']
-    SecondHalf=[SecondRow[2], SecondRow[1], int(SecondRow[3]), int(SecondRow[3])+length, SecondRow[9], SecondRow[10], FirstRow[5], SecondRow[5],FirstRow[4], SecondRow[4], MD_1, MD_2, QD_1, QD_2]
+    SecondHalf=[SecondRow[2], SecondRow[1], int(SecondRow[3]), int(SecondRow[3])+length, SecondRow[9], SecondRow[10], FirstRow[5], SecondRow[5],MAPQ_1, MAPQ_2, MD_1, MD_2, QD_1, QD_2, "{0},{1}".format(A1, X1), "{0},{1}".format(A2, X2)]
 
     return (FirstHalf + SecondHalf)
 
@@ -812,7 +839,7 @@ def AssignRead(contig, cons_dict):
         assignment='as'
     return assignment
 
-def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, GemCode, cons_file, match_by_read_ID=False):
+def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, GemCode, cons_file,reference_summary, match_by_read_ID=False):
 
     """Converts the four *.sam files (as_1, as_2, te_1, te_2) into two *.sam files,
     and then creates a new output format where each read pair is specified with a row.
@@ -833,7 +860,7 @@ def OrganizeOutput(inDir, Root, END, CountPosition, PosRange, GemCode, cons_file
 
     A read pair where both ends are unmapped is discarded."""
 
-    all_sequences, consensus_sequences, reference_sequences=ReadReferenceSummaries(cons_file)
+    all_sequences, consensus_sequences, reference_sequences=ReadReferenceSummaries(reference_summary)
     ChrKey={}
     ChrKey['*']='um'
 
@@ -1140,6 +1167,27 @@ def OrganizeOutputII(inDir, Root, END, CountPosition, PosRange, IndexList):
     SourceHandle.close()
     QueryHandle.close()
 
+def UpdateMapQ(row):
+    read_len=float(len(row[9]))
+    optional=row[10:]
+    optional_headers=[flag.split(':')[0] for flag in optional]
+    AS=-1
+    XS=-1
+    if optional_headers.count('AS')!=0:
+        AS_index=optional_headers.index('AS')
+        AS=read_len*2+ float(optional[AS_index].split(':')[-1])
+    if optional_headers.count('XS')!=0:
+        XS_index=optional_headers.index('XS')
+        XS=read_len*2+ float(optional[XS_index].split(':')[-1])
+    if AS==-1:
+        return 0, AS, XS
+    if Score2PercIdent(AS, read_len)<.8:
+        return 0, AS, XS
+    elif XS==-1:
+        return 40,AS,XS
+    else:
+        MAPQ=MapConf(AS,XS, read_len, passed=False)
+        return int(numpy.rint( MAPQ)), AS,XS
 def GetMDString(row):
     optional=row[11:]
     optional_headers=[flag.split(':')[0] for flag in optional]
@@ -1336,7 +1384,7 @@ def DownsampleFastq(infile1, infile2, outfile, target_fraction=.2 ):
     inhandle2.close()
 
 
-def pipeline (inDir, outDir, AssemblyIndex, TEIndex, threads, config, cons_file='', length=70, ReadIDPosition=1, PositionRange=0, PHRED=33, shorten=True, rename=True, Trim=True, Align=True, convTable='', GemCode=False):
+def pipeline (inDir, outDir, AssemblyIndex, TEIndex, threads, config,alignment_parameters, exclude=[], cons_file='',reference_summary='', length=70, ReadIDPosition=1, PositionRange=0, PHRED=33, shorten=True, rename=True, Trim=True, Align=True, convTable='', GemCode=False):
 
     """This functions runs the alignment and post-alignment organization pipeline.
 
@@ -1374,7 +1422,7 @@ def pipeline (inDir, outDir, AssemblyIndex, TEIndex, threads, config, cons_file=
 
     RunLog=open('/'.join([outDir, 'runlog.txt']), 'a')
 
-    Roots, Root_Ext = FindInput(inDir)
+    Roots, Root_Ext = FindInput(inDir, exclude)
 
     RunLog.write('Version: {0}\n\n'.format(version))
     RunLog.write('Parameters: length = {0}, phred = {1}, shorten = {2}, Trim = {3}, Align = {4}\n\n'.format(length, PHRED, shorten, Trim, Align))
@@ -1476,7 +1524,7 @@ def pipeline (inDir, outDir, AssemblyIndex, TEIndex, threads, config, cons_file=
                 outName='{0}_{1}_p_{2}.sam'.format(sample, e, i)
                 SeedLength={'as': 22, 'te': 22}
                 if Align==True:
-                   AlignmentError=CallAligner(target,outDir+'/'+outName, IndexFiles[i], cutoff[i], SeedLength[i], str(threads), RunLog, phred, BowtiePath)
+                   AlignmentError=CallAligner(target,outDir+'/'+outName, IndexFiles[i],alignment_parameters[i], str(threads), RunLog, phred, BowtiePath)
 
                 if Unzipped==True:
                     unzipped.close()
@@ -1531,7 +1579,7 @@ def pipeline (inDir, outDir, AssemblyIndex, TEIndex, threads, config, cons_file=
         ChrKey = RejoinSam(outDir, sample, Ends[1], ReadIDPosition, 0, ['as', 'te'])
         ChrKey = RejoinSam(outDir, sample, Ends[0], ReadIDPosition, 0,['as', 'te'])
 
-        OrganizeOutput(outDir,sample, Ends, ReadIDPosition, 0,  GemCode, cons_file=cons_file)
+        OrganizeOutput(outDir,sample, Ends, ReadIDPosition, 0,  GemCode, cons_file=cons_file, reference_summary=reference_summary)
 
         Processed.append(sample)
         for n in['1','2']:
@@ -1620,6 +1668,10 @@ def main(argv):
     outDir=param['-o']
     AssemblyIndex=spec_dict['AssemblyIndex']
     TEIndex=spec_dict['RepeatIndex']
+
+    AlignmentParameters={'as': spec_dict['AssemblyAlignmentParameters'], 'te':spec_dict['RepeatAlignmentParameters']}
+
+
     threads=int( spec_dict['threads'])
     cons_file=spec_dict['Cons']
     convTable=''
@@ -1635,13 +1687,22 @@ def main(argv):
 
     rename=spec_dict['RenameReads']
     GemCode=spec_dict['Gemcode']
+    if spec_dict.has_key("Exclude"):
+        exclude=spec_dict['Exclude']
+    else:
+        exclude=['']
+
 
     print Parameters.BowtiePath
     if param.has_key('-output')==True:
         sample=param['-i'] #Should the be sample root without end information
-        OrganizeOutput(outDir,sample, ['1','2'], 1, 0,  GemCode, cons_file=spec_dict['RefSummary'],match_by_read_ID= False)
+        OrganizeOutput(outDir,sample, ['1','2'], 1, 0,  GemCode, cons_file=cons_file, reference_summary=spec_dict['RefSummary'],match_by_read_ID= False)
         return
-    pipeline(inDir, outDir, AssemblyIndex, TEIndex, str(threads), executables, cons_file=cons_file, PHRED=phred, length=length, convTable=convTable, rename=rename, GemCode=GemCode)
+    pipeline(inDir, outDir, AssemblyIndex, TEIndex, str(threads), executables,
+            alignment_parameters=AlignmentParameters,exclude=exclude,
+            cons_file=cons_file, reference_summary=spec_dict['RefSummary'],
+            PHRED=phred, length=length, convTable=convTable, rename=rename,
+            GemCode=GemCode)
 
     pass
 

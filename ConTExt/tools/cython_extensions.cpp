@@ -2651,7 +2651,7 @@ static PyObject *__pyx_f_7ConTExt_5tools_17cython_extensions_ComputeAlignmentSco
  *             quality_string[mismatch_pos]
  *             prob=exp( -1*(quality-phred_base)*phred_scale)             # <<<<<<<<<<<<<<
  *             score+=log(prob/3.)
- *     score-=indels
+ *     score+=indels
  */
           __pyx_v_prob = exp(((-1.0 * (__pyx_v_quality - __pyx_v_phred_base)) * __pyx_v_phred_scale));
 
@@ -2659,7 +2659,7 @@ static PyObject *__pyx_f_7ConTExt_5tools_17cython_extensions_ComputeAlignmentSco
  *             quality_string[mismatch_pos]
  *             prob=exp( -1*(quality-phred_base)*phred_scale)
  *             score+=log(prob/3.)             # <<<<<<<<<<<<<<
- *     score-=indels
+ *     score+=indels
  * 	#print score
  */
           __pyx_v_score = (__pyx_v_score + log((__pyx_v_prob / 3.)));
@@ -2688,14 +2688,14 @@ static PyObject *__pyx_f_7ConTExt_5tools_17cython_extensions_ComputeAlignmentSco
   /* "ConTExt/tools/cython_extensions.pyx":52
  *             prob=exp( -1*(quality-phred_base)*phred_scale)
  *             score+=log(prob/3.)
- *     score-=indels             # <<<<<<<<<<<<<<
+ *     score+=indels             # <<<<<<<<<<<<<<
  * 	#print score
  *     return score
  */
-  __pyx_v_score = (__pyx_v_score - __pyx_v_indels);
+  __pyx_v_score = (__pyx_v_score + __pyx_v_indels);
 
   /* "ConTExt/tools/cython_extensions.pyx":54
- *     score-=indels
+ *     score+=indels
  * 	#print score
  *     return score             # <<<<<<<<<<<<<<
  * 

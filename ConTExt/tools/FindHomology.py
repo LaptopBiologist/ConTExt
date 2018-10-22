@@ -20,7 +20,7 @@ import numpy
 import seaborn
 import matplotlib
 from matplotlib import pyplot
-
+##import SeqManipulations
 import Bio
 from Bio import SearchIO
 from Bio import SeqIO
@@ -81,11 +81,24 @@ def CleanName(name):
     return(name)
 
 
-def ClusterIndex(index, outDir, BlastDir, cutoff=85, coverage_req=0):
-
-    #Split the index into files containing 300 seq.
+def ClusterIndexByLength(index, outDir, BlastDir, cutoff=85):
+    #Split file by lengths
     inDir='/'.join(index.split('/')[:-1])
     tempDir=inDir+'/temp'
+    SplitFileByLength(index, tempDir)
+    file_list=os.listdir(tempDir)
+    for f in file_list:
+        infile=tempDir+'/'+f
+        outfile=tempDir+'/'+f.split('.')[0]+'_out'
+        ClusterIndex(infile, outfile, BlastDir, cutoff=80)
+
+
+def ClusterIndex(index, outDir, BlastDir, cutoff=85, coverage_req=0):
+    MakeDir(outDir)
+    #Split the index into files containing 300 seq.
+    inDir='/'.join(index.split('/')[:-1])
+    baseDir='/'.join(outDir.split('/')[:-1])
+    tempDir=outDir+'/temp'
     splitFile(index, tempDir, 300)
 
     outfiles=[]
@@ -126,6 +139,31 @@ def JoinFiles(infiles, inDir, outfile):
         inhandle.close()
     outhandle.close()
 
+
+def SplitFileByLength(infile, tempdir):
+    MakeDir(tempdir)
+    refSeq=GetSeq(infile, clean_name=False)
+    #
+    length_dict={}
+
+    for read_name in refSeq.keys():
+        length=float( read_name.split('_')[1].split('=')[1])
+        if length_dict.has_key(length)==False:
+            length_dict[length]={}
+        length_dict[length][read_name]=refSeq[read_name]
+
+    inDir='/'.join(infile.split('/')[:-1])
+    root=infile.split('/')[-1]
+    rootname='.'.join(root.split('.')[:-1])
+    ext=root.split('.')[-1]
+    for length in length_dict.keys():
+        outfile="{0}/{1}_temp_{2}.{3}".format(tempdir, rootname,int( length), ext)
+        outHandle=open(outfile, 'w')
+        for read_name in length_dict[length].keys():
+            outHandle.write('>'+read_name+'\n')
+            outHandle.write(str(length_dict[length][read_name].seq)+'\n')
+
+        outHandle.close()
 
 def splitFile(infile, tempDir, limit=500):
     MakeDir(tempDir)
@@ -175,11 +213,12 @@ def BlastSeq(Query, Subject, Out, BlastDir):
 
 ##    column_spec='10 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue btop'
     column_spec='10 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue qcovs btop'
-    BLAST=subprocess.Popen([BlastDir, '-query',Query, '-subject',Subject, '-outfmt', column_spec,  '-out', OutFile], stderr=errlog)
+    BLAST=subprocess.Popen([BlastDir, '-query',Query, '-subject',Subject, \
+    '-outfmt', column_spec,  '-word_size', '11','-dust', 'no', '-soft_masking','false' ,\
+      '-out', OutFile], stderr=errlog)  #
     BLAST.communicate()
     errlog.close()
     return OutFile
-
 def BlastSeq_part(Query, Subject, OutPath, outname, BlastDir):
     """BLASTs two fastas against each other."""
     MakeDir(OutPath)
@@ -187,10 +226,46 @@ def BlastSeq_part(Query, Subject, OutPath, outname, BlastDir):
     print (OutPath)
     errlog=open(OutPath+'/_err.log', 'a')
     column_spec='10 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue qcovs btop'
+    BLAST=subprocess.Popen([BlastDir, '-query',Query, '-subject',Subject,
+                        '-outfmt', column_spec, '-max_hsps', '1',
+                        '-word_size', '11' ,  '-out', OutFile], stderr=errlog)  #'-dust', 'no', '-soft_masking', 'false',
+    BLAST.communicate()
+    errlog.close()
+    return OutFile
+def BlastDir(insDir, consDir, outDir):
+
+    insFile=os.listdir(insDir)
+    consFile=os.listdir(consDir)
+    MakeDir(outDir)
+    for f in insFile:
+        print "BLASTing {0}...".format(insFile)
+        consPath=consDir+'/'+f
+        insPath=insDir+'/'+f
+        if os.path.exists(consPath)==False: continue
+        BlastSeqII(insPath, consPath, outDir,  '.'.join(f.split('.')[:-1]) , 'c:/ncbi-blast')
+
+def BlastDirII(insDir, consPath, outDir):
+
+    insFile=os.listdir(insDir)
+    MakeDir(outDir)
+    for f in insFile:
+        print "BLASTing {0}...".format(f)
+        insPath=insDir+'/'+f
+        BlastSeqII(insPath, consPath, outDir,  '.'.join(f.split('.')[:-1]) , 'c:/ncbi-blast')
+
+
+def BlastSeqII(Query, Subject, Out, name, BlastDir):
+    """BLASTs two fastas against each other."""
+    OutPath='.'.join(Out.split('.'))
+    OutFile=OutPath+'/'+name+'.csv'
+    print (OutPath)
+    errlog=open(OutPath+'/_err.log', 'a')
+    column_spec='10 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue btop'
     BLAST=subprocess.Popen([BlastDir, '-query',Query, '-subject',Subject, '-outfmt', column_spec,  '-out', OutFile], stderr=errlog)
     BLAST.communicate()
     errlog.close()
     return OutFile
+
 
 
 def ParseSequences(InFile):
@@ -294,6 +369,268 @@ def WriteOutput(clusters, singletons, outDir, index):
     outHandle.close()
     inhandle.close()
     return(hold)
+
+
+def ClusterByLengths(indir, outfile):
+    file_list=os.listdir(indir)
+    outhandle=open(outfile, 'w')
+    for f in file_list:
+        if f=='singletons.fa':
+            sequences=GetSeq(indir+'/'+f, clean_name=False)
+            for key in sequences.keys():
+                outhandle.write('>{0}\n'.format(key))
+                outhandle.write('{0}\n'.format(str(sequences[key])))
+            continue
+        if f.split('_')[0]!='community':continue
+        sequences=GetSeq(indir+'/'+f, clean_name=False)
+        hc, clusters=HierarchicalCluster(sequences)
+        for key in clusters:
+            outhandle.write('>{0}\n'.format(key))
+            outhandle.write('{0}\n'.format(str(sequences[key])))
+    outhandle.close()
+
+def FilterLowComplexityRepeatsFromFasta(indir, outfile, ignore=''):
+    file_list=os.listdir(indir)
+
+    if ignore!='':
+        ignore_list=ReadIgnoreFile(ignore)
+    else:
+        ignore_list=[]
+    outhandle=open(outfile, 'w')
+    for f in file_list:
+        file_root='.'.join( f.split('.')[:-1])
+        #Add all singletons to the output
+        if f=='singletons.fa':
+            sequences=GetSeq(indir+'/'+f, clean_name=False)
+            for key in sequences.keys():
+                outhandle.write('>{0}\n'.format(key))
+                outhandle.write('{0}\n'.format(sequences[key]))
+            continue
+        if f.split('_')[0]!='community':continue
+        sequences=GetSeq(indir+'/'+f, clean_name=False)
+
+        if ignore_list.count(  file_root.split('_')[1])!=0:
+            for key in sequences.keys():
+                outhandle.write('>{0}\n'.format(key))
+                outhandle.write('{0}\n'.format(sequences[key]))
+            continue
+        clusters=RemoveLowComplexityRepeats(sequences)
+        for key in clusters:
+            outhandle.write('>{0}\n'.format(key))
+            outhandle.write('{0}\n'.format(sequences[key]))
+    outhandle.close()
+
+def RemoveLowComplexityRepeats(sequences):
+    #Set the threshold equal twice the information of the most complex repeat
+    information_threshold=min( CheckSequenceInformation(sequences))*2
+    complex_sequences={}
+    for key in sequences.keys():
+        information=(float( key.split('_')[-1].split('=')[-1]))
+        if information<=information_threshold:
+            complex_sequences[key]=sequences[key]
+    return complex_sequences
+
+
+def CheckSequenceInformation(sequences):
+    #First identify the lowest information sequence:
+    information_list=[]
+    for key in sequences.keys():
+        information_list.append(float( key.split('_')[-1].split('=')[-1]))
+    return information_list
+
+
+def ReadIgnoreFile(infile):
+    """Parses a file indicating which communities should be skipped by
+    RemoveLowComplexityRepeats.
+
+    The numbers of communities to skip should be separated by commas
+    Lines beginning with # will be treated as comments and skipped
+    (eg providing justification for skipping these communities).
+    """
+    ignore_list=[]
+    inhandle=open(infile, 'r')
+    for line in inhandle:
+        #Skip comments
+        if line[0]=='#': continue
+        ignore_list+=line.split(',')
+
+    inhandle.close()
+    return ignore_list
+def FilterByLengths(infile, outfile, cutoff=100):
+    sequences=GetSeq(infile, clean_name=False)
+    outhandle=open(outfile, 'w')
+    for key in sequences:
+        length=len(sequences[key])
+        if length<cutoff: continue
+        outhandle.write('>{0}\n'.format(key))
+        outhandle.write('{0}\n'.format(str(sequences[key].seq)))
+    outhandle.close()
+def HierarchicalCluster(sequences):
+    """This takes a list of lengths and clusters them as follows:
+        For each adjacent pair, it computes the  """
+    seq_keys=numpy.array(sequences.keys())
+    lengths=numpy.array( [len(sequences[k]) for k in seq_keys], float)
+
+
+    #Sort the lengths and sequences by length in ascending order
+    sort_ind=numpy.argsort(lengths)
+    lengths=lengths[sort_ind]
+    seq_keys=seq_keys[sort_ind]
+
+
+
+
+    distances=abs(numpy.diff(lengths))
+    midpoints=(lengths[1:]+lengths[:-1])/2
+    score=distances/(2*midpoints)
+    clusters=[[seq_keys[0]]]
+    for i,s in enumerate(score):
+        if s<.02: clusters[-1].append(seq_keys[i+1])
+        else:clusters.append([seq_keys[i+1]])
+
+    retained_keys=[]
+    for c in clusters:
+        counts=numpy.array( [float( SeqManipulations.ParseSeqName(k)['counts'] ) for k in c])
+
+        best_ind=numpy.argmax(counts)
+        retained_keys.append(c[best_ind])
+
+    return clusters, retained_keys
+
+def PlotClusters(clusters):
+    count=0
+    colors=matplotlib.colors.cnames.keys()
+    numpy.random.shuffle(colors)
+    for c in clusters:
+
+        counts=numpy.array( [float(k.split('_')[2].split('=')[-1]) for k in c])
+        lengths=numpy.array( [float(k.split('_')[1].split('=')[-1]) for k in c])
+        t=pyplot.scatter(lengths, numpy.log10( counts),c=colors[count%len(colors)] )
+
+        count+=1
+    pyplot.show()
+
+def ComputeKmerCompositionEntropy(sequence,k=5):
+    """Summarize the complexity of a repeat unit by decomposing it into kmers
+    and then modeling the expected counts of each observed kmer with a multinomial distribution.
+    The multinomial probability is multiplied by the number of possible sets of kmers
+    the same size as the observed set (the binomial coefficient), because we don't care at all about the
+    identity of the kmers. This kept in log-space to avoid precision errors.
+    The log-probability is divided by the number of kmers the sequence was decomposed into.
+
+    Note: the binom coefficient becomes imprecise for k>5; 5-mers though provides
+    a reasonable summary of sequece complexity."""
+
+    #Replace ambiguous nucleotides with one of the nucleotides they represent
+    sequence=SeqManipulations.ReplaceAmbiguousNucleotides(sequence)
+
+    #Decompose the sequence into kmer counts
+
+    kmer_counts=CountKMERS(sequence, k)
+
+    #Number of kmers possible
+    num_poss_kmers=(4.**k)
+
+    #Assume each kmer is equally likely
+    pr=1./num_poss_kmers
+
+    #The number of kmers contained in the sequence
+    num_kmers=sum(kmer_counts.values())
+
+    obs=kmer_counts.values()+[0]* (int(num_poss_kmers-len(kmer_counts.keys())))
+
+    #Multiply the probablity by the binomial coefficient: Don't care which kmers are enriched!
+    #In log space, this means add the logs
+
+    try:
+        logprob=numpy.log( scipy.special.binom(num_poss_kmers, len(kmer_counts.keys()))) + scipy.stats.multinomial.logpmf(obs, num_kmers, [pr]*int( num_poss_kmers))
+    except:
+        print kmer_counts
+        print len(kmer_counts.values())
+        print jabber
+    information=0
+
+    if logprob!=0:
+        information=-1*logprob
+    else:
+        information=numpy.inf
+
+    #Output average information per kmer
+    return information/ (num_kmers)#len(kmer_counts.keys())#@, len(kmer_counts.keys())/num_kmers
+
+
+def CountKMERS(sequence, k=10 ):
+    """Decomposes sequence into kmers."""
+    kmerSet={}
+    for x in range(0,len(sequence)-k+1):
+        kmer=str(sequence[x:x+k])
+        if kmerSet.has_key(kmer)==False:
+            kmerSet[kmer]=0.
+        kmerSet[kmer]+=1
+    return kmerSet
+##        kmerSet.add(str(complement[x:x+k]))
+    return list(kmerSet)
+
+def SplitFastaByEntropy(infile, outfile):
+    low_outhandle=open(outfile+'_low.fa', 'w')
+    high_outhandle=open(outfile+'_high.fa', 'w')
+    seqs=GetSeq(infile, upper=True)
+    for key in seqs.keys():
+        entropy=ComputeKmerCompositionEntropy(seqs[key],5)
+        if entropy<2:
+            low_outhandle.write('>{0}_entropy={1}\n'.format(key, entropy))
+            low_outhandle.write('{0}\n'.format(seqs[key]))
+        else:
+            high_outhandle.write('>{0}_entropy={1}\n'.format(key, entropy))
+            high_outhandle.write('{0}\n'.format(seqs[key]))
+    high_outhandle.close()
+    low_outhandle.close()
+
+def LabelFastaWithEntropy(infile, outfile):
+    outhandle=open(outfile, 'w')
+
+    seqs=GetSeq(infile, upper=True)
+    for key in seqs.keys():
+        entropy=ComputeKmerCompositionEntropy(seqs[key],5)
+
+        outhandle.write('>{0}_information={1}\n'.format(key, entropy))
+        outhandle.write('{0}\n'.format(seqs[key]))
+    outhandle.close()
+
+def LoadGraph(infile, blastdir,cutoff, cvg):
+    outpath='/'.join(infile.split('/')[:-1])
+    outroot='.'.join( infile.split('/')[-1].split('.')[:-1])+'_temp.csv'
+    BlastSeq_part(infile, infile, outpath, outroot, blastdir)
+    seq=ParseSequences(outpath+'/'+outroot)
+    graph=BuildGraph(seq, cutoff, cvg)
+    return graph
+
+
+def MaskRepeats(infile, maskfile, blastdir, cutoff=85):
+    outfile=''.join(infile.split('.')[:-1])+'_aligned.csv'
+
+    BlastSeq(infile, maskfile, outfile, blastdir)
+
+    aligned_handle=open(outfile, 'r')
+    aligned_table=csv.reader(aligned_handle, delimiter=',')
+
+    sequences=GetSeq(infile)
+    #Make the sequences numpyarrays for easy manipulation
+    for key in sequences.keys():
+        sequences[key]=numpy.fromstring(str( sequences[key].seq), '|S1')
+    for row in aligned_table:
+        line=alignment(row)
+        if line.identity<cutoff: continue
+        aligned_len=abs( line.qend-line.qstart)
+        if aligned_len<50: continue
+        sequences[line.query][line.qstart:line.qend]='N'
+    aligned_handle.close()
+    outfile=''.join(infile.split('.')[:-1])+'_masked.fa'
+    outhandle=open(outfile, 'w')
+    for key in sorted(sequences.keys()):
+        outhandle.write('>{0}\n'.format(key))
+        outhandle.write('{0}\n'.format(''.join(sequences[ key])))
+    outhandle.close()
 
 
 def main(argv):

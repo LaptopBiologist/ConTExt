@@ -669,7 +669,7 @@ def ClusterFile(infile, outfile, self_seq,  cov_dict, exclude_consensus=True ):
     print "Evaluation: {0} junctions in.\n {1} junctions out.\nPassed test: {2}".format(number_junctions_in, number_junctions_out, number_junctions_in==number_junctions_out)
     return failed_images
 
-def ReadMetaTableAsDictionary (infile, err_dict, emp=True, exclude_cons=True):
+def ReadMetaTableAsDictionary (infile, err_dict, emp=True, exclude_cons=False):
     """Read a metatable and output list of junctions and corresponding uncertainty measures"""
     inhandle=open(infile, 'r')
     intable=csv.reader(inhandle, delimiter='\t',quoting=csv.QUOTE_NONE)

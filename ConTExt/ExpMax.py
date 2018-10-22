@@ -297,7 +297,7 @@ def ExpandCIGAR(CIGAR):
         CIGAR_list+=[val]*count
     return numpy.array( CIGAR_list)
 
-def ReadDistributions(infile, cutoff=.005, return_full=False):
+def ReadDistributions(infile, cutoff=.005, return_full=False, return_distance=False, pearson_fit=True):
     """Reads the *.tsv file which stores the insert size or read length distribution.
 
     If return_full==True, it returns the observed MPD distribution, its KDE, and the
@@ -323,13 +323,23 @@ def ReadDistributions(infile, cutoff=.005, return_full=False):
     cumul_k=numpy.cumsum(k)
 ##    print cumul_k
 ##    print numpy.where(cumul_k>=(1.-cutoff))
-    max_cutoff=d[ numpy.where(cumul_k>=(1.-cutoff))[0][0]]
-    min_cutoff=d[ numpy.where(cumul_k>=(cutoff))[0][0]]
+    if pearson_fit==False:
+        max_cutoff=d[ numpy.where(cumul_k>=(1.-cutoff))[0][0]]
+        min_cutoff=d[ numpy.where(cumul_k>=(cutoff))[0][0]]
+    else:
+        sample=numpy.random.choice(d, size=10000, p=m) #Draw a sample from the distribution
+        pearson_param=scipy.stats.skewnorm.fit(sample) #Fit a pearson3 distribution
+        boundaries=(scipy.stats.skewnorm.ppf(1-cutoff, *pearson_param),\
+                                scipy.stats.skewnorm.ppf(cutoff, *pearson_param))
+        min_cutoff, max_cutoff=min(boundaries), max(boundaries)
+
 ##    median= numpy.where(cumul_k>=.5)[0][0]
 ##    offset=min(abs(max_cutoff-median), abs(min_cutoff-median))
 
 ##    print (median-offset,median+offset)
 
+    if return_distance==True:
+        return m/m.sum(),k/k.sum(), p/p.sum(), d
     if return_full==True:
         return m[d>=0]/m[d>=0].sum(),k[d>=0]/k[d>=0].sum(), p[d>=0]/p[d>=0].sum()
 
@@ -880,7 +890,7 @@ def AgglomerateModels(theta):
 #Feeding ConTExt output throught the EM algorithm
 
 
-def ClusterDirectory(indir, outfile, dist_file, cov, ref_dict, sequences_to_cluster, GemCode=False):
+def ClusterDirectory(indir, outfile, dist_file, cov, ref_dict, sequences_to_cluster, distance_cutoff=-1, GemCode=False, phred=33):
 
     """Iterate through each file in the directory indir, fit GMMs to the read pair
     distributions and write the output to outfile."""
@@ -891,7 +901,9 @@ def ClusterDirectory(indir, outfile, dist_file, cov, ref_dict, sequences_to_clus
     start_time=time.clock()
     read_timer, cluster_timer, write_timer=0.,0.,0.
 
-    m,k,p=ReadDistributions(dist_file)
+    m,k,p=ReadDistributions(dist_file, cutoff=.005)
+    if distance_cutoff==-1:
+        distance_cutoff=k
     p/=sum(p)
 
     #Simulate the estimation error as a function of read count
@@ -910,7 +922,7 @@ def ClusterDirectory(indir, outfile, dist_file, cov, ref_dict, sequences_to_clus
 ##        if file_root!= 'Jockey-3_DSim': continue
         if sequences_to_cluster.has_key (file_root)==False: continue
         infile='{0}/{1}'.format(indir, f)
-        Pair_List, read_time, cluster_time, write_time, cluster_count=ClusterFile(infile, outTable, Pair_List, cov, k, p, ref_dict, cluster_count, regression_coefficients, GemCode)
+        Pair_List, read_time, cluster_time, write_time, cluster_count=ClusterFile(infile, outTable, Pair_List, cov, distance_cutoff, p, ref_dict, cluster_count, regression_coefficients, GemCode, phred)
 
         print "Time spent reading: {0}\nTime spent clustering: {1}\nTime spent writing: {2}".format (read_time, cluster_time, write_time)
         read_timer+=read_time
@@ -919,7 +931,7 @@ def ClusterDirectory(indir, outfile, dist_file, cov, ref_dict, sequences_to_clus
     outhandle.close()
     print "It took {0} seconds to process.\n Time spent reading: {1}\nTime spent clustering: {2}\nTime spent writing: {3}".format (time.clock()-start_time, read_timer, cluster_timer, write_timer)
 
-def ClusterFile(infile,outTable, Pair_List, cov, k, p, ref_dict, cluster_count, regression_coefficients, GemCode=False):
+def ClusterFile(infile,outTable, Pair_List, cov, k, p, ref_dict, cluster_count, regression_coefficients, GemCode=False, phred=33):
 
 
     print ref_dict
@@ -939,7 +951,7 @@ def ClusterFile(infile,outTable, Pair_List, cov, k, p, ref_dict, cluster_count, 
             Pair_List[pair]=True
         for quadrant in clusters[key]:
             print '.',
-            cluster_count= WriteClusters(outTable, clusters[key][quadrant], seq_name, key, quadrant, p, cluster_count,  regression_coefficients, GemCode)
+            cluster_count= WriteClusters(outTable, clusters[key][quadrant], seq_name, key, quadrant, p, cluster_count,  regression_coefficients, GemCode, phred)
     write_time=time.clock()-write_start
     return Pair_List, read_time, cluster_time, write_time, cluster_count
 
@@ -964,7 +976,8 @@ def LoadImages(infile, refLen):
 
         context=line.Seq2
         quadrant=(line.Strand1, line.Strand2)
-        if refLen.has_key(context) and line.MapQ2<20: continue
+##        if refLen.has_key(context) and line.MapQ2<20: continue
+        if line.MapQ1<10 or line.MapQ2<10: continue
         if line.Seq1==line.Seq2 and line.Strand1!=line.Strand2:
             quadrant=('-','+')
         if imageDict.has_key(context)==False:
@@ -1302,6 +1315,7 @@ def WriteClusters(outTable, clusters,anchor_name, target_name, quadrant, Pr_dist
         if consensus==False:
 ##            closest_jxn, offset, CI=EstJxnDist(clusters[key], quadrant, Pr_dist)
 ##            best_jxn, min_jxn, max_jxn=EstJxnDist(clusters[key], quadrant, Pr_dist)
+            if read_count==1: continue
             if read_count<=1000:
                 x5_positions=[str(i.fivePrime1) for i in clusters[key].line_list[:] ]
                 y5_positions=[str( i.fivePrime2 ) for i in clusters[key].line_list[:] ]
@@ -1933,7 +1947,22 @@ def main(argv):
 
     if param=={}:
         return
-
+    if param.has_key('-check'):
+        file_list=os.listdir(param['-check'])
+        outfile=param['-check']+'/check.tsv'
+        outhandle=open(outfile, 'w')
+        outtable=csv.writer(outhandle, delimiter='\t')
+        for f in file_list:
+            if f.find('kde.tsv')!=-1:
+                print f
+                m_old,k_old,p_old=ReadDistributions(param['-check']+'/'+f)
+                m_new,k_new,p_new=ReadDistributions(param['-check']+'/'+f, pearson_fit=True)
+                m,k,p,d=ReadDistributions(param['-check']+'/'+f, return_distance=True)
+                sample=numpy.random.choice(d, size=10000,p=m )
+                coverage=(sample<=k_new[0])*(sample>=k_new[1])
+                outtable.writerow([f, k_old[0], k_old[1], k_new[0], k_new[1],numpy.mean( coverage)])
+        outhandle.close()
+        return()
     infile= param['-i']
     outfile=param['-o']
 
@@ -2034,7 +2063,7 @@ def main(argv):
         else:
             WriteDistributions.WriteDistributions(directory,names=spec_dict['Cvg'])
 
-        m,k,p=ReadDistributions(dist_file)
+        m,k,p=ReadDistributions(dist_file, cutoff=.005)
         mean_insert_size= WeightedAverage(p, numpy.arange(len(p)))
         sd_insert_size= WeightedStdDev(p, numpy.arange(len(p)))
 
@@ -2069,7 +2098,7 @@ def main(argv):
         sample_summary+=[mean_insert_size, sd_insert_size, k[0], k[1]]
         print k
 
-        #Generate 10000 simulated distributions of 5 reads
+        #Generate 10000 simulated distributions of 3 reads
         #Calculate the maximum distance between reads on each axis
         #Determine the 99th percentile of distances. Use this as the cutoff for the
         #simple clustering strategy
@@ -2119,7 +2148,7 @@ def main(argv):
         summary_table.writerow(sample_summary)
         summary_handle.flush()
 ##        ValidateDirectory(directory,val_file, dist_file, cov_opt, distance_cutoff)
-        ClusterDirectory(directory,output_file, dist_file, cov_opt,ref_seq, cons_seq , GemCode)
+        ClusterDirectory(directory,output_file, dist_file, cov_opt,ref_seq, cons_seq, distance_cutoff=k , GemCode=GemCode, phred=int (spec_dict['Phred']))
 
 if __name__ == '__main__':
     main(sys.argv)

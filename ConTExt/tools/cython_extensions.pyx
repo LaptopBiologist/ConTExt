@@ -49,7 +49,7 @@ cpdef ComputeAlignmentScore(const unsigned char [:] quality_string, long[:] read
             quality_string[mismatch_pos]
             prob=exp( -1*(quality-phred_base)*phred_scale)
             score+=log(prob/3.)
-    score-=indels
+    score+=indels
 	#print score
     return score
 

@@ -179,6 +179,249 @@ def EstimateRepeatAbundance(infile, outfile, consFile, kdefile, lenFile, insertF
     pickle.dump(cons_dict, outhandle)
     outhandle.close()
     return abundance_dictionary
+
+##def BuildCNSignal(infile, outfile, consFile, kdefile, lenFile, insertFile):
+####    m,k,p=ReadDistributions(lenFile)
+####    read_len=2*WeightedAverage(m, range(len(m)))
+####    m,k,p=ReadDistributions(insertFile)
+##    kernel=CoverageModeller.ConstructKernel(insertFile, lenFile)
+####    ins_len=1*WeightedAverage(k,range(len(k)))
+####    read_length=read_len+ins_len
+##    cvg=numpy.load(kdefile)
+##    kde_root='_'.join(infile.split('_')[:-1]) +"_cvg_kde"
+##    if os.path.exists(kde_root+'_auto.npy')==False:
+##        kde, kde_x=CoverageModeller.SmoothCvgByGC(cvg)
+####        kde_root=inDir+"_cvg_kde"
+##        numpy.save(kde_root+'_auto.npy', kde)
+##    else:
+##        kde=numpy.load(kde_root+'_auto.npy')
+####    numpy.save(kde_root+'_x.npy', kde_x)
+##    kde=numpy.array(kde)
+####    exp_cvg=ExpCvg( kde)
+##
+##    consSeq=GetSeq(consFile)
+####    cumul_dist=numpy.cumsum(k)
+##
+##
+##    inhandle=open(infile, 'r')
+##    intable=csv.reader(inhandle, delimiter='\t')
+##    outhandle=open(outfile, 'w')
+##    countDict={}
+##    cons_dict={}
+####    refNames=['X', '2L','3L', '2R', '3R']
+##    row=intable.next()
+##    exp_cvg=ExpectedReadDepth(kde)
+##    abundance_dictionary={}
+##    for sequence in consSeq.keys():
+##        abundance_dictionary[sequence]=0.
+##    for row in intable:
+##
+##        line=cluster(row)
+##        if line.feature!='Consensus': continue
+##        if consSeq.has_key(line.Seq1)==False: continue
+##        cons_dict[line.Seq1]=numpy.array([0.]*len(consSeq[line.Seq1]))
+##        cons_dict[line.Seq1].fill(0.)
+##        for i in range( len(line.x_list)):
+##            l,r=line.y_list[i], line.x_list[i]
+##            cons_dict[line.Seq1][l:r-1]+=1.
+####        if key=='':continue
+##        seq_array=numpy.fromstring ( consSeq[line.Seq1].lower(), '|S1')
+##        gc_array=(seq_array=='g')+(seq_array=='c')
+##    ##        mean_gc=numpy.mean(gc_array)
+##        if len(cons_dict[line.Seq1])>max(600, len(kernel)):
+##
+##            exp_GC=numpy.convolve(gc_array, kernel, 'same')
+##            rounded_gc=numpy.asarray(100*exp_GC, int)
+##            rounded_gc[rounded_gc>100]=100
+##
+##            expected_coverage=exp_cvg[rounded_gc]
+##            estimated_CN=cons_dict[line.Seq1]/expected_coverage
+##
+##
+##            cons_dict[line.Seq1]=(cons_dict[line.Seq1], estimated_CN, expected_coverage)
+##            abundance_dictionary[line.Seq1]=estimated_abundance
+##    pickle.dump(cons_dict, outhandle)
+##    outhandle.close()
+##    return abundance_dictionary
+
+def BuildCNSignal(indir,  outdir,in_tail, seq_file,method='consensus',ID_file='', sample_pos=0, rep_pos=1 ):
+    MakeDir(outdir)
+    files=os.listdir(indir)
+    image_directory={}
+    rpt_dict=GetSeq(seq_file)
+    snp_dict={}
+
+    if  method=='ID':
+        #The load the IDs to examine
+##        ID_handle=open(ID_file, 'r')
+##        ID_table=csv.reader(ID_handle, delimiter='\t')
+##        IDs=ID_table.next()
+##        ID_dict={}
+##        for i in range(len(IDs)):
+##            print i
+##            if ID_dict.has_key(samples[i])==False:
+##                ID_dict[samples[i]]={}
+##            if ID_dict[samples[i]].has_key(reps[i])==False:
+##                ID_dict[samples[i]][reps[i]]={}
+##            ID_dict[samples[i]][reps[i]][IDs[i]]=True
+        ID_dict, rpt_tracker=ReadIDFile(ID_file)
+    #Fill the dictionary firs
+    kernel_dict={}
+    expcvg_dict={}
+
+    for f in sorted( files ):
+
+        filename=f.split('/')[-1]
+        root=filename.split('.')[0]
+        tail=root.split('_')[-1]
+        name='_'.join(root.split('_')[:-1])
+        if tail!=in_tail: continue
+
+        filepath=indir+'/'+f
+        file_root='_'.join( filepath.split('_')[:-1])
+        #Build the kernel
+        insertFile=file_root+'_kde.tsv'
+        lenFile= file_root+'_len.tsv'
+        kdefile=file_root+'_cvg_hist.npy'
+        kernel=CoverageModeller.ConstructKernel(insertFile, lenFile)
+        #load the coverage
+        cvg=numpy.load(kdefile)
+        kde_root=file_root +"_cvg_kde"
+        if os.path.exists(kde_root+'_auto.npy')==False:
+            kde, kde_x=CoverageModeller.SmoothCvgByGC(cvg)
+    ##        kde_root=inDir+"_cvg_kde"
+            numpy.save(kde_root+'_auto.npy', kde)
+        else:
+            kde=numpy.load(kde_root+'_auto.npy')
+    ##    numpy.save(kde_root+'_x.npy', kde_x)
+        kde=numpy.array(kde)
+    ##    exp_cvg=ExpCvg( kde)
+
+##            consSeq=GetSeq(consFile)
+
+
+        root_parts= root.split('_')
+        sample=root_parts[sample_pos]
+        if rep_pos!=-1:
+            rep=root_parts[rep_pos]
+        else:
+            rep='1'
+        for rpt in sorted( rpt_dict.keys()):
+            length=len(rpt_dict[rpt])+1
+            try:
+                snp_dict[rpt][sample]=numpy.array([0.]*length)
+                snp_dict[rpt][sample].fill(0.)
+            except:
+                snp_dict[rpt]={}
+                snp_dict[rpt][sample]=numpy.array([0.]*length)
+                snp_dict[rpt][sample].fill(0.)
+        kernel_dict[sample]=kernel
+        expcvg_dict[sample]=ExpectedReadDepth(kde)
+    sample_file=outdir+'/sample.tsv'
+    sample_handle=open(sample_file, 'w')
+    sample_table=csv.writer(sample_handle, delimiter='\t')
+    count=0
+    for f in sorted( files ):
+
+        #Only process files with the appropriate tag
+        filename=f.split('/')[-1]
+        root=filename.split('.')[0]
+        tail=root.split('_')[-1]
+        name='_'.join(root.split('_')[:-1])
+        if tail!=in_tail: continue
+        print name
+
+        root_parts= root.split('_')
+        sample=root_parts[sample_pos]
+        if rep_pos!=-1:
+            rep=root_parts[rep_pos]
+        else:
+            rep='1'
+        if rep=='2': continue
+##        continue
+        print sample
+        inhandle=open(indir+'/'+f, 'r')
+        intable=csv.reader(inhandle, delimiter= '\t')
+        intable.next()
+        sample_table.writerow([sample])
+        print '\n'
+        for row in intable:
+            try:
+                line=cluster(row)
+            except:
+                print row
+                print jabber
+            #Delete this tomorrow
+##            if line.Seq1=='L1HS' or line.Seq1=='AluYb10': continue
+            #if line.Seq1!='TAHRE': continue
+            if method=='consensus' and line.feature=='Consensus':
+##                print line.ID
+                try:
+                    length=len(rpt_dict[line.Seq1])+1
+                except:
+                    #Not in the repeat index:
+                    continue
+                cons_sig=numpy.array([0.]* length)
+                for i in range( len(line.x_list)):
+                    l,r=line.y_list[i], line.x_list[i]
+                    cons_sig[l+1:r+1-1]+=1.
+##        if key=='':continue
+                seq_array=numpy.fromstring ( 'n'+rpt_dict[line.Seq1].lower(), '|S1')
+                gc_array=(seq_array=='g')+(seq_array=='c')
+
+                if len(rpt_dict[line.Seq1])>max(600, len(kernel_dict[sample])):
+
+                    exp_GC=numpy.convolve(gc_array, kernel_dict[sample], 'same')
+                    rounded_gc=numpy.asarray(100*exp_GC, int)
+                    rounded_gc[rounded_gc>100]=100
+
+                    expected_coverage=expcvg_dict[sample][rounded_gc]
+                    print line.Seq1, cons_sig.shape,expected_coverage.shape
+                    estimated_CN=cons_sig/expected_coverage
+                    #Fill in nan with the local average:
+                    #Look at the average non-nan coverage in that range pos-k:pos+k
+                    #except when those edges fall outside the domain of the sequence
+                    #if all such positions have nan coverage, set the CN estimate
+                    #to zero
+                    nan_positions=numpy.where( numpy.isnan(estimated_CN)==True)[0]
+                    k=100
+                    for position in nan_positions:
+                        if position>k:
+                            left=position-k
+                        else: left=0
+                        if position<length-k:
+                            right=position+k
+
+                        else:
+                            right=length
+                        interpolating_value=numpy.nanmean(estimated_CN[left:right])
+                        if numpy.isnan( interpolating_value)==True:
+                            interpolating_value=0
+                        estimated_CN[position]=interpolating_value
+
+                    snp_dict[line.Seq1][sample]+=estimated_CN
+
+                print '.',
+            elif method=='ID':
+                if ID_dict[sample][rep].has_key(line.ID)==True:
+                    pileup=PileUp(line,Seq=rpt_dict[line.Seq1], length=length)
+                    snp_dict[line.Seq1][sample]=pileup
+
+##                break
+        inhandle.close()
+        print '\n'
+##        print len(snp_list)
+    #Write the output files
+    for repeat in sorted( snp_dict.keys()):
+        repeat_array=[]
+        for sample in sorted(snp_dict[repeat].keys()):
+            repeat_array.append(snp_dict[repeat][sample])
+        outfile='{0}/{1}_CN.npy'.format(outdir, repeat)
+        numpy.save(outfile, numpy.stack(repeat_array))
+##        outhandle=open(outfile, 'w')
+##        pickle.dump(repeat_array, outhandle)
+##        outhandle.close()
+
 ##
 ##        if key=='':continue
 ##        seq_array=numpy.fromstring ( consSeq[f].lower(), '|S1')
@@ -477,6 +720,29 @@ def PullSnpTable(indir, in_tail, outdir, ID_file='', consensus=False):
             ID_dict[samples[i]][reps[i]]={}
         ID_dict[samples[i]][reps[i]][IDs[i]]=True
 
+def ReadIDFile(infile):
+    inhandle=open(infile, 'r')
+    intable=csv.reader(inhandle, delimiter='\t')
+    samples=intable.next()[13:]
+    id_dict={}
+    inv_dict={}
+    rpt_tracker={}
+    for row in intable:
+        cluster_ind=row[0]
+        rpt_tracker[cluster_ind]=row[1]
+        id_dict[cluster_ind]={}
+        sample_info=row[13:]
+        for i,sample_clusters in enumerate(sample_info):
+            id_list=sample_clusters.split(';')[-1].split(',')
+            for id_num in id_list:
+                try: id_dict[cluster_ind][samples[i]].append(id_num)
+                except: id_dict[cluster_ind][samples[i]]=[id_num]
+                try: inv_dict[samples[i]][id_num]=cluster_ind
+                except:
+                    inv_dict[samples[i]]={}
+                    inv_dict[samples[i]][id_num]=cluster_ind
+
+    return inv_dict, rpt_tracker
 
 
 def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,method='consensus',ID_file='', sample_pos=0, rep_pos=1 ):
@@ -488,19 +754,20 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,method='consensus'
 
     if  method=='ID':
         #The load the IDs to examine
-        ID_handle=open(ID_file, 'r')
-        ID_table=csv.reader(ID_handle, delimiter='\t')
-        IDs=ID_table.next()
-        ID_dict={}
-        for i in range(len(IDs)):
-            print i
-            if ID_dict.has_key(samples[i])==False:
-                ID_dict[samples[i]]={}
-            if ID_dict[samples[i]].has_key(reps[i])==False:
-                ID_dict[samples[i]][reps[i]]={}
-            ID_dict[samples[i]][reps[i]][IDs[i]]=True
-
+##        ID_handle=open(ID_file, 'r')
+##        ID_table=csv.reader(ID_handle, delimiter='\t')
+##        IDs=ID_table.next()
+##        ID_dict={}
+##        for i in range(len(IDs)):
+##            print i
+##            if ID_dict.has_key(samples[i])==False:
+##                ID_dict[samples[i]]={}
+##            if ID_dict[samples[i]].has_key(reps[i])==False:
+##                ID_dict[samples[i]][reps[i]]={}
+##            ID_dict[samples[i]][reps[i]][IDs[i]]=True
+        ID_dict, rpt_tracker=ReadIDFile(ID_file)
     #Fill the dictionary firs
+
     for rpt in sorted( rpt_dict.keys()):
         length=len(rpt_dict[rpt])+1
         snp_dict[rpt]={}
@@ -556,6 +823,7 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,method='consensus'
                 print jabber
             #Delete this tomorrow
 ##            if line.Seq1=='L1HS' or line.Seq1=='AluYb10': continue
+            #if line.Seq1!='TAHRE': continue
             if method=='consensus' and line.feature=='Consensus':
 ##                print line.ID
                 try:
@@ -564,13 +832,13 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,method='consensus'
                     #Not in the repeat index:
                     continue
 
-                pileup=PileUp(line, length=length)
+                pileup=PileUp(line, Seq=rpt_dict[line.Seq1],length=length)
                 snp_dict[line.Seq1][sample]=pileup
 
                 print '.',
             elif method=='ID':
                 if ID_dict[sample][rep].has_key(line.ID)==True:
-                    pileup=PileUp(line, length=length)
+                    pileup=PileUp(line,Seq=rpt_dict[line.Seq1], length=length)
                     snp_dict[line.Seq1][sample]=pileup
 
 ##                break
@@ -587,6 +855,114 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,method='consensus'
 ##        outhandle=open(outfile, 'w')
 ##        pickle.dump(repeat_array, outhandle)
 ##        outhandle.close()
+
+def PileupSequencesByIDs(indir,  outdir,in_tail, seq_file,ID_file='', sample_pos=0, rep_pos=1 ):
+    MakeDir(outdir)
+    files=os.listdir(indir)
+    image_directory={}
+    rpt_dict=GetSeq(seq_file)
+    snp_dict={}
+
+
+    #The load the IDs to examine
+##        ID_handle=open(ID_file, 'r')
+##        ID_table=csv.reader(ID_handle, delimiter='\t')
+##        IDs=ID_table.next()
+##        ID_dict={}
+##        for i in range(len(IDs)):
+##            print i
+##            if ID_dict.has_key(samples[i])==False:
+##                ID_dict[samples[i]]={}
+##            if ID_dict[samples[i]].has_key(reps[i])==False:
+##                ID_dict[samples[i]][reps[i]]={}
+##            ID_dict[samples[i]][reps[i]][IDs[i]]=True
+    ID_dict, rpt_tracker=ReadIDFile(ID_file)
+    #Fill the dictionary firs
+
+    for ID in sorted( rpt_tracker.keys()):
+        rpt=rpt_tracker[ID]
+        length=len(rpt_dict[rpt])+1
+        snp_dict[ID]={}
+        for f in sorted( files ):
+
+            filename=f.split('/')[-1]
+            root=filename.split('.')[0]
+            tail=root.split('_')[-1]
+            name='_'.join(root.split('_')[:-1])
+            if tail!=in_tail: continue
+            root_parts= root.split('_')
+            sample=root_parts[sample_pos]
+            if rep_pos!=-1:
+                rep=root_parts[rep_pos]
+            else:
+                rep='1'
+
+            snp_dict[ID][sample]=numpy.ndarray((5,length))
+            snp_dict[ID][sample].fill(0.)
+    sample_file=outdir+'/sample.tsv'
+    sample_handle=open(sample_file, 'w')
+    sample_table=csv.writer(sample_handle, delimiter='\t')
+    count=0
+    for f in sorted( files ):
+
+        #Only process files with the appropriate tag
+        filename=f.split('/')[-1]
+        root=filename.split('.')[0]
+        tail=root.split('_')[-1]
+        name='_'.join(root.split('_')[:-1])
+        if tail!=in_tail: continue
+        print name
+
+        root_parts= root.split('_')
+        sample=root_parts[sample_pos]
+        if rep_pos!=-1:
+            rep=root_parts[rep_pos]
+        else:
+            rep='1'
+        if rep=='2': continue
+##        continue
+        print sample
+        inhandle=open(indir+'/'+f, 'r')
+        intable=csv.reader(inhandle, delimiter= '\t')
+        intable.next()
+        sample_table.writerow([sample])
+        print '\n'
+        for row in intable:
+            try:
+                line=cluster(row)
+            except:
+                print row
+                print jabber
+            #Delete this tomorrow
+##            if line.Seq1=='L1HS' or line.Seq1=='AluYb10': continue
+            if ID_dict[sample].has_key(line.ID):
+                cluster_id=ID_dict[sample][line.ID]
+##                print line.ID
+                try:
+                    length=len(rpt_dict[ rpt_tracker[cluster_id]])+1
+                except:
+                    #Not in the repeat index:
+                    continue
+
+                pileup=PileUp(line, length=length)
+                snp_dict[cluster_id][sample]+=pileup
+
+                print '.',
+
+        inhandle.close()
+        print '\n'
+##        print len(snp_list)
+    #Write the output files
+    for repeat in sorted( snp_dict.keys()):
+        repeat_array=[]
+        for sample in sorted(snp_dict[repeat].keys()):
+            repeat_array.append(snp_dict[repeat][sample])
+        outfile='{0}/{1}_{2}_snps.npy'.format(outdir, repeat, rpt_tracker[repeat])
+        numpy.save(outfile, numpy.stack(repeat_array))
+##        outhandle=open(outfile, 'w')
+##        pickle.dump(repeat_array, outhandle)
+##        outhandle.close()
+
 
 def PileUp(clust, Seq='', length=8119):
     SNP_array=numpy.ndarray((5,length))
@@ -692,6 +1068,12 @@ def PileUp(clust, Seq='', length=8119):
 
     print count
     print SNP_array.sum()
+    #Process to incorporate the consensus
+    if Seq!='':
+        consensus_nt=ReadToSNPs(Seq)
+        for pos, c_i in enumerate( consensus_nt):
+            SNP_array[c_i,pos+1]+=SNP_array[0,pos+1]
+            SNP_array[0,pos+1]=0
     return SNP_array
 
 
@@ -901,14 +1283,19 @@ def main(argv):
     seqDict=mergeDicts(refSeq, consSeq)
     file_list=os.listdir(param['-i'])
     count=0
+    if param.has_key('-CN')==True:
 
+        BuildCNSignal(param['-i'], param['-o'], param['-tail'], consfile)
+        return()
     if param.has_key('-snp')==True:
         if param['-snp']=='ID':
             method='IDs'
             ID_file=param['-id']
+            PileupSequencesByIDs(param['-i'], param['-o'], param['-tail'], consfile, ID_file=ID_file)
+            return()
         else:
             method='consensus'
-            ID_files=''
+            ID_file=''
         PileupConsensusSequences(param['-i'], param['-o'], param['-tail'], consfile, method=method, ID_file=ID_file)
         return()
     sample_dict={}
