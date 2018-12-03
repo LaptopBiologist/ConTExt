@@ -606,12 +606,12 @@ def ClusterFile(infile, outfile, self_seq,  cov_dict, exclude_consensus=True ):
             print cluster_labels
             #Fix mistakes
             print cluster_assignments
-            jxn_tables, cluster_assignments, cluster_labels, cluster_map=CorrectErrors(jxn_tables, data[seq][quad], cluster_assignments, cluster_labels)
+##            jxn_tables, cluster_assignments, cluster_labels, cluster_map=CorrectErrors(jxn_tables, data[seq][quad], cluster_assignments, cluster_labels)
             print cluster_assignments
-            jxn_tables, jxn_array, cluster_labels=BuildClusterTable(cluster_assignments, samples[seq][quad],data[seq][quad], ID[seq][quad], CN[seq][quad], cov_dict, exclude_consensus)
+##            jxn_tables, jxn_array, cluster_labels=BuildClusterTable(cluster_assignments, samples[seq][quad],data[seq][quad], ID[seq][quad], CN[seq][quad], cov_dict, exclude_consensus)
             print 'After correction: {0}'.format(jxn_tables.shape)
             print cluster_labels
-            print cluster_map
+##            print cluster_map
             start=number_junctions_out
             for i in range(len(cluster_labels)):
                 #What data points belong to the cluster
