@@ -40,6 +40,59 @@ except:
 
 csv.field_size_limit(sys.maxsize)
 
+class ConTExtLine():
+    strand={'0':'+', '16':'-', '4':'*'}
+    reverse_strand={'+':'0', '-':'16', '*':'4'}
+    def __init__(self, row):
+
+        self.Seq1=row[0]
+        self.Strand1=ConTExtLine.strand[row[1]]
+        self.Start1=int(row[2])
+        self.End1=int(row[3])
+        self.Seq2=row[6]
+
+        self.Read1=row[4]
+        self.Read2=row[10]
+
+        self.Qual1=row[5]
+        self.Qual2=row[11]
+        self.Strand2=ConTExtLine.strand[row[7]]
+        self.Start2=int(row[8])
+        self.End2=int(row[9])
+        self.Cigar1=row[12]
+        self.Cigar2=row[13]
+        self.MapQ1=int(row[14])
+        self.MapQ2=int(row[15])
+        #self.Mismatches1=row[16]
+        #self.Mismatches2=row[17]
+        if self.Strand1=='+':
+            self.threePrime1=self.End1
+            self.fivePrime1=self.Start1
+        else:
+            self.threePrime1=self.Start1
+            self.fivePrime1=self.End1
+        if self.Strand2=='+':
+            self.threePrime2=self.End2
+            self.fivePrime2=self.Start2
+        else:
+            self.threePrime2=self.Start2
+            self.fivePrime2=self.End2
+        self.MD1=row[16]
+        self.MD2=row[17]
+        self.QD1=row[18]
+        self.QD2=row[19]
+        if len(row)>19:self.optional=row[19]
+        else: self.optional=''
+
+    def row(self):
+        row=[self.Seq1, ConTExtLine.reverse_strand[ self.Strand1], self.Start1, self.End1, self.Read1, self.Qual1, self.Seq2, ConTExtLine.reverse_strand[self.Strand2], self.Start2, self.End2,self.Read2,self.Qual2, self.Cigar1, self.Cigar2, self.MapQ1, self.MapQ2, self.MD1, self.MD2, self.QD1, self.QD2]+[self.optional]
+        return row
+
+    def inverse_row(self):
+        row=[self.Seq2, ConTExtLine.reverse_strand[ self.Strand2], self.Start2, self.End2, self.Read2,self.Qual2, self.Seq1,ConTExtLine.reverse_strand[ self.Strand1], self.Start1, self.End1,self.Read1,self.Qual1, self.Cigar2, self.Cigar1, self.MapQ2, self.MapQ1, self.MD2, self.MD1, self.QD2, self.QD1]+[self.optional]
+        return row
+
+
 class SamLine():
 
     def __init__(self, row):
@@ -74,6 +127,7 @@ def ReadDistributions(infile, cutoff=.005, return_full=True):
     mpd=table.next()
     kde=table.next()
     pr=table.next()
+
     try:
         domain=table.next()
     except:
@@ -81,11 +135,10 @@ def ReadDistributions(infile, cutoff=.005, return_full=True):
 
 
     m,k,p,d=numpy.array( [float(m) for m in mpd]),numpy.array( [float(k) for k in kde]),numpy.array( [float(p) for p in pr]), numpy.array( [float(d) for d in domain])
+
     handle.close()
-    p=p[d>=0]
+##    p=p[d>=0]
     cumul_k=numpy.cumsum(k)
-##    print cumul_k
-##    print numpy.where(cumul_k>=(1.-cutoff))
     max_cutoff=d[ numpy.where(cumul_k>=(1.-cutoff))[0][0]]
     min_cutoff=d[ numpy.where(cumul_k>=(cutoff))[0][0]]
 ##    median= numpy.where(cumul_k>=.5)[0][0]
@@ -96,7 +149,7 @@ def ReadDistributions(infile, cutoff=.005, return_full=True):
     if return_full==True:
         return m[d>=0]/m[d>=0].sum(),k[d>=0]/k[d>=0].sum(), p[d>=0]/p[d>=0].sum()
 
-    return m, (min_cutoff, max_cutoff), p
+    return m, (min_cutoff, max_cutoff), p[d>=0]
 
 
 def mergeDicts(dict_1, dict_2):
@@ -244,7 +297,163 @@ def EstimateRepeatAbundance(infile, outfile, consFile, kdefile, lenFile, insertF
 ##    outhandle.close()
 ##    return abundance_dictionary
 
-def BuildCNSignal(indir,  outdir,in_tail, seq_file,method='consensus',ID_file='', sample_pos=0, rep_pos=1 ):
+def CorrectionForGap(x,L,g):
+  return 1-(L-70-x)/g
+
+def WeightForPosition(x,length, gap_dist):
+  gaps=numpy.arange(0, len(gap_dist))
+  distance=length-70-x
+  p=CorrectionForGap(x, length, gaps)
+  p[p<0]=0
+
+  return numpy.sum(p*gap_dist)
+
+def ConstructCorrection(length, gap_dist):
+  domain=numpy.arange(0,length,1.)
+  test=numpy.array([ WeightForPosition(d, len(cvg), gap_dist) for d in domain])
+  test[numpy.isnan(test)]=1.
+  test= numpy.max([test,test[::-1]],axis=0)
+  return 1.- test
+
+
+def BuildCopyNumberFromRawAlignments(indir, outdir, clusterdir, seq_file,in_tail='out', sample_pos=0, rep_pos=1):
+    MakeDir(outdir)
+    kernel_path="{0}/kernels".format(outdir)
+    GC_path="{0}/GC".format(outdir)
+    cvg_path="{0}/cvg".format(outdir)
+
+    MakeDir(kernel_path)
+    MakeDir(GC_path)
+    MakeDir(cvg_path)
+    rpt_seq=GetSeq(seq_file)
+    #Need to load in all of the distributions and coverage expectations
+    #from the clustering output
+    files=os.listdir(clusterdir)
+    kernel_dict={}
+    expcvg_dict={}
+    for f in sorted( files ):
+
+        filename=f.split('/')[-1]
+        root=filename.split('.')[0]
+        tail=root.split('_')[-1]
+        name='_'.join(root.split('_')[:-1])
+        if tail!=in_tail: continue
+
+        filepath=clusterdir+'/'+f
+        file_root='_'.join( filepath.split('_')[:-1])
+        #Build the kernel
+        insertFile=file_root+'_kde.tsv'
+        m,k,p=ReadDistributions(insertFile)
+        lenFile= file_root+'_len.tsv'
+        kdefile=file_root+'_cvg_hist.npy'
+        kernel=CoverageModeller.ConstructKernel(insertFile, lenFile)
+        #load the coverage
+        cvg=numpy.load(kdefile)
+        kde_root=file_root +"_cvg_kde"
+        if os.path.exists(kde_root+'_auto.npy')==False:
+            kde, kde_x=CoverageModeller.SmoothCvgByGC(cvg)
+
+            numpy.save(kde_root+'_auto.npy', kde)
+        else:
+            kde=numpy.load(kde_root+'_auto.npy')
+
+        kde=numpy.array(kde)
+
+        root_parts= root.split('_')
+        sample=root_parts[sample_pos]
+        kernel_file="{0}/{1}_kernel.npy".format(kernel_path, sample)
+        numpy.save(kernel_file, kernel)
+        if rep_pos!=-1:
+            rep=root_parts[rep_pos]
+        else:
+            rep='1'
+
+        kernel_dict[sample]=kernel
+        expcvg_dict[sample]=ExpectedReadDepth(kde)
+        GC_file="{0}/{1}_GC.npy".format(GC_path, sample)
+        numpy.save(GC_file, expcvg_dict[sample])
+    for repeat in sorted( rpt_seq):
+        seq_array=numpy.fromstring ( 'n'+rpt_seq[repeat].lower(), '|S1')
+        gc_array=(seq_array=='g')+(seq_array=='c')
+        cvg_dict={}
+        CN_dict={}
+        length=len(rpt_seq[repeat])+1
+        #Iterate over samples
+        for directory, subdir, files in os.walk(indir):
+
+            folder= directory.split('/')[-1]
+            if folder=='': continue #This is the parent directory, skip it
+            sample=folder.split('_')[sample_pos]
+            cvg_dict[sample]=numpy.array([0.]*length)
+            rpt_file="{0}/{1}.dat".format(directory, repeat)
+            try:
+                inhandle=open(rpt_file, 'r')
+                intable=csv.reader(inhandle, delimiter='\t')
+                for row in intable:
+                    line=ConTExtLine(row)
+                    #Only consider concordantly mapped reads
+                    if line.Seq1!=line.Seq2: continue
+                    if line.Strand1==line.Strand2: continue
+                    left=min(line.threePrime1,line.threePrime2)
+                    right=max(line.threePrime1,line.threePrime2)
+                    gap_size=abs(right-left)
+                    if gap_size>500:continue
+
+                    cvg_dict[sample][left:right]+=1.
+
+                #Esitmate copy number
+                if len(rpt_seq[repeat])>max(600, len(kernel_dict[sample])):
+
+                    exp_GC=scipy.signal.fftconvolve( gc_array, kernel_dict[sample], 'same')
+                    rounded_gc=numpy.asarray(100*exp_GC, int)
+                    rounded_gc[rounded_gc>100]=100
+
+                    expected_coverage=expcvg_dict[sample][rounded_gc]
+
+                    estimated_CN=cvg_dict[sample]/expected_coverage
+                    #Fill in nan with the local average:
+                    #Look at the average non-nan coverage in that range pos-k:pos+k
+                    #except when those edges fall outside the domain of the sequence
+                    #if all such positions have nan coverage, set the CN estimate
+                    #to zero
+
+                    nan_positions=numpy.isnan(estimated_CN)==True
+                    inf_positions=numpy.isinf(estimated_CN)==True
+                    bad_positions=numpy.where(nan_positions+inf_positions>0)[0]
+                    k=100
+                    for position in bad_positions:
+                        if position>k:
+                            left=position-k
+                        else: left=0
+                        if position<length-k:
+                            right=position+k
+
+                        else:
+                            right=length
+                        interpolating_value=numpy.nanmean(estimated_CN[left:right])
+                        if numpy.isnan( interpolating_value)==True:
+                            interpolating_value=0
+                        estimated_CN[position]=interpolating_value
+                    CN_dict[sample]=estimated_CN
+                else:
+                    CN_dict[sample]=numpy.array( [0.]*length)
+
+            except: CN_dict[sample]=numpy.array( [0.]*length)
+        cvg_array=[]
+        cn_array=[]
+        for sample in sorted(cvg_dict.keys()):
+            cvg_array.append(cvg_dict[sample])
+            cn_array.append(CN_dict[sample])
+        cvg_array=numpy.array(cvg_array)
+        cn_array=numpy.array(cn_array)
+        outpath="{0}/{1}_cvg.npy".format(cvg_path, repeat)
+        numpy.save(outpath, cvg_array)
+        outpath="{0}/{1}_CN.npy".format(outdir, repeat)
+        numpy.save(outpath, cn_array)
+
+##        print jabber
+
+def BuildCNSignal(indir,  outdir,in_tail, seq_file,method='consensus',ID_file='', reads=False, sample_pos=0, rep_pos=1 ):
     MakeDir(outdir)
     files=os.listdir(indir)
     image_directory={}
@@ -377,7 +586,10 @@ def BuildCNSignal(indir,  outdir,in_tail, seq_file,method='consensus',ID_file=''
 
                     expected_coverage=expcvg_dict[sample][rounded_gc]
                     print line.Seq1, cons_sig.shape,expected_coverage.shape
-                    estimated_CN=cons_sig/expected_coverage
+                    if reads==True:
+                        estimated_CN=cons_sig
+                    else:
+                        estimated_CN=cons_sig/expected_coverage
                     #Fill in nan with the local average:
                     #Look at the average non-nan coverage in that range pos-k:pos+k
                     #except when those edges fall outside the domain of the sequence
@@ -1246,20 +1458,20 @@ def ExpandCIGAR(CIGAR):
 #       Diagnostic Functions
 #-----------------------------------------------------------------------------#
 
-from statsmodels import api
-def CheckAutocorrelation(signal):
-    acf=statsmodels.tsa.stattools.acf(signal[~numpy.isnan(signal)], nlags=1000, fft=True)
-    #Permute the signal
-    boot_straps=[]
-    for i in range(100):
-        ind=numpy.arange(len(signal))
-        numpy.random.shuffle(ind)
-        copy_af=signal[ind]
-        boot_straps.append(statsmodels.tsa.stattools.acf(copy_af[~numpy.isnan(copy_af)] , nlags=1000, fft=True))
-    for b in boot_straps:
-        f=pyplot.plot(b, c='grey', alpha=.2)
-    pyplot.plot(acf, c='r')
-    pyplot.show()
+##from statsmodels import api
+##def CheckAutocorrelation(signal):
+##    acf=statsmodels.tsa.stattools.acf(signal[~numpy.isnan(signal)], nlags=1000, fft=True)
+##    #Permute the signal
+##    boot_straps=[]
+##    for i in range(100):
+##        ind=numpy.arange(len(signal))
+##        numpy.random.shuffle(ind)
+##        copy_af=signal[ind]
+##        boot_straps.append(statsmodels.tsa.stattools.acf(copy_af[~numpy.isnan(copy_af)] , nlags=1000, fft=True))
+##    for b in boot_straps:
+##        f=pyplot.plot(b, c='grey', alpha=.2)
+##    pyplot.plot(acf, c='r')
+##    pyplot.show()
 
 def main(argv):
     param={}
@@ -1283,9 +1495,17 @@ def main(argv):
     seqDict=mergeDicts(refSeq, consSeq)
     file_list=os.listdir(param['-i'])
     count=0
+    if param.has_key('-rawCN')==True:
+        print 'rawCN'
+        BuildCopyNumberFromRawAlignments( param["-i"], param['-o'], param['-clust'], consfile   )
+        return()
     if param.has_key('-CN')==True:
-
-        BuildCNSignal(param['-i'], param['-o'], param['-tail'], consfile)
+        if param.has_key('-reads')==True:
+            reads=True
+            print "Building read depths signal"
+        else:
+            reads=False
+        BuildCNSignal(param['-i'], param['-o'], param['-tail'], consfile, reads=reads)
         return()
     if param.has_key('-snp')==True:
         if param['-snp']=='ID':
