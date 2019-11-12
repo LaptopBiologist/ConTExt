@@ -971,12 +971,14 @@ def LoadImages(infile, refLen):
     imageDict={}
     #load the lines
     seq_name=row[0]
+    context_set=set()
     for row in inTable:
         line=ConTExtLine(row)
 
         context=line.Seq2
+        context_set.add(context)
         quadrant=(line.Strand1, line.Strand2)
-##        if refLen.has_key(context) and line.MapQ2<20: continue
+        if refLen.has_key(context) and line.MapQ2<10: continue
         if line.MapQ1<10 or line.MapQ2<10: continue
         if line.Seq1==line.Seq2 and line.Strand1!=line.Strand2:
             quadrant=('-','+')
@@ -986,7 +988,11 @@ def LoadImages(infile, refLen):
             imageDict[context][quadrant]=[]
 
         imageDict[context][quadrant].append(line)
-
+    print "contexts:"
+    print(sorted(context_set))
+    for key in imageDict.keys():
+        for q in imageDict[key]:
+            print (key, q, len(imageDict[key][q]))
     return imageDict, seq_name
 
 
@@ -1101,7 +1107,14 @@ def ClusterAllImages(scatter, lines, anchor, cov, dist):
     cluster_dict={}
 
     print "Cluster reads in {0}".format(anchor)
+    print (sorted( scatter.keys()))
+    clustered_flag={}
+    for contig in scatter.keys():
+        clustered_flag[contig]={}
+        for quadrant in scatter[contig].keys():     #for each pair of strands
+            clustered_flag[contig][quadrant]=False
     for contig in scatter.keys():   #For each contig
+
         if contig=='*': continue
         cluster_dict[contig]={}
         for quadrant in scatter[contig].keys():     #for each pair of strands
@@ -1125,7 +1138,7 @@ def ClusterAllImages(scatter, lines, anchor, cov, dist):
                 nonconcordantReads=scatter[contig][quadrant]
                 nonconcordantIndices=numpy.array( range(0,len(nonconcordantReads[0,:])))
 
-            if len( nonconcordantIndices)==0: return cluster_dict
+            if len( nonconcordantIndices)==0: continue
 
             #This condition is impossible, routine never accessed. Let's comment it out and see what happens
 
@@ -1156,12 +1169,16 @@ def ClusterAllImages(scatter, lines, anchor, cov, dist):
 ##            else:
             reads_x, reads_y, labels, nonconcordantIndices_2, clusters=ClusterImage(scatter[contig][quadrant], quadrant, numpy.array( cov)*orientation, lines[contig][quadrant], self_self, dist,nonconcordantReads, nonconcordantIndices)
             cluster_dict[contig][quadrant]=clusters
+            clustered_flag[contig][quadrant]=True
 
     if has_consensus==True and len(concordantIndices)!=0:
         consensus_cluster=Cluster(concordant, concordant_lines)
         cluster_dict['Consensus']={}
         cluster_dict['Consensus'][('-','+')]={0:consensus_cluster}
+    for contig in clustered_flag.keys():
 
+        for quadrant in clustered_flag[contig].keys():
+            print '\t\t Clustered status {0} {1} : {2}'.format(contig, quadrant,clustered_flag[contig][quadrant] )
     print "\tTook {0} seconds to process {1}.".format( time.clock()-start_time, anchor)
     return cluster_dict
 
