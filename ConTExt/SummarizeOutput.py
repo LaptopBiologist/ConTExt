@@ -957,6 +957,7 @@ def ReadIDFile(infile):
     return inv_dict, rpt_tracker
 
 
+
 def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,method='consensus',ID_file='', sample_pos=0, rep_pos=1 ):
     MakeDir(outdir)
     files=os.listdir(indir)
@@ -966,17 +967,7 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,method='consensus'
 
     if  method=='ID':
         #The load the IDs to examine
-##        ID_handle=open(ID_file, 'r')
-##        ID_table=csv.reader(ID_handle, delimiter='\t')
-##        IDs=ID_table.next()
-##        ID_dict={}
-##        for i in range(len(IDs)):
-##            print i
-##            if ID_dict.has_key(samples[i])==False:
-##                ID_dict[samples[i]]={}
-##            if ID_dict[samples[i]].has_key(reps[i])==False:
-##                ID_dict[samples[i]][reps[i]]={}
-##            ID_dict[samples[i]][reps[i]][IDs[i]]=True
+
         ID_dict, rpt_tracker=ReadIDFile(ID_file)
     #Fill the dictionary firs
 
@@ -1044,7 +1035,7 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,method='consensus'
                     #Not in the repeat index:
                     continue
 
-                pileup=PileUp(line, Seq=rpt_dict[line.Seq1],length=length)
+                pileup=PileUp(line, Seq=rpt_dict[line.Seq1],length=length, seq_name=line.Seq1)
                 snp_dict[line.Seq1][sample]=pileup
 
                 print '.',
@@ -1052,6 +1043,19 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,method='consensus'
                 if ID_dict[sample][rep].has_key(line.ID)==True:
                     pileup=PileUp(line,Seq=rpt_dict[line.Seq1], length=length)
                     snp_dict[line.Seq1][sample]=pileup
+            elif method=='all' and line.feature!='Probable Artifact':
+##                print line.ID
+                try:
+                    length=len(rpt_dict[line.Seq1])+1
+                except:
+                    #Not in the repeat index:
+                    continue
+
+                pileup=PileUp(line, Seq=rpt_dict[line.Seq1],length=length, seq_name=line.Seq1)
+
+                snp_dict[line.Seq1][sample]+=pileup
+
+                print '.',
 
 ##                break
         inhandle.close()
@@ -1067,6 +1071,7 @@ def PileupConsensusSequences(indir,  outdir,in_tail, seq_file,method='consensus'
 ##        outhandle=open(outfile, 'w')
 ##        pickle.dump(repeat_array, outhandle)
 ##        outhandle.close()
+
 
 def PileupSequencesByIDs(indir,  outdir,in_tail, seq_file,ID_file='', sample_pos=0, rep_pos=1 ):
     MakeDir(outdir)
@@ -1176,7 +1181,7 @@ def PileupSequencesByIDs(indir,  outdir,in_tail, seq_file,ID_file='', sample_pos
 ##        outhandle.close()
 
 
-def PileUp(clust, Seq='', length=8119):
+def PileUp(clust, Seq='', length=8119, seq_name=''):
     SNP_array=numpy.ndarray((5,length))
     SNP_array.fill(0.)
     quad_1=clust.Quad1
@@ -1199,84 +1204,90 @@ def PileUp(clust, Seq='', length=8119):
         qdY=clust.QD_Y[i]
         #Maybe need to reverse?
 
-        parsed_cigX=ParseCIGAR(cigX)
-        len_x=parsed_cigX['D']+parsed_cigX['M']
-        cig_array_X=ExpandCIGAR(cigX)
-        matched_indices_X=numpy.where(cig_array_X[cig_array_X!='I'] =='M')[0]
-        md_array_X=ExpandMD(clust.MD_X[i])
-
-        parsed_cigY=ParseCIGAR(cigY)
-        len_y=parsed_cigY['D']+parsed_cigY['M']
-        cig_array_Y=ExpandCIGAR(cigY)
-        matched_indices_Y=numpy.where(cig_array_Y[cig_array_Y!='I'] =='M')[0]
-        md_array_Y=ExpandMD(clust.MD_Y[i])
+        if clust.Seq2==seq_name:
+            parsed_cigY=ParseCIGAR(cigY)
+            len_y=parsed_cigY['D']+parsed_cigY['M']
+            cig_array_Y=ExpandCIGAR(cigY)
+            matched_indices_Y=numpy.where(cig_array_Y[cig_array_Y!='I'] =='M')[0]
+            md_array_Y=ExpandMD(clust.MD_Y[i])
 
 
-        if md_array_X=='Failed' or md_array_Y=='Failed': continue
-        if quad_1=='+':
-            x_5=x_3-len_x
-        else:
-            x_5=x_3+len_x
-        if quad_2=='+':
-            y_5=y_3-len_y
-        else:
-            y_5=y_3+len_y
-        x_l=min(x_3, x_5)
-        x_r=max(x_3, x_5)
-        y_l=min(y_3, y_5)
-        y_r=max(y_3, y_5)
-        cvg[x_l:x_r]+=1.
-        cvg[y_l: y_r]+=1.
-        try:
-            if qdY=='':
+            if md_array_Y=='Failed': continue  #Skip reads with any Ns
 
-                SNP_array[:,y_l:y_r][md_array_Y[5:-5], matched_indices_Y[5:-5]]+=1
+            if quad_2=='+':
+                y_5=y_3-len_y
+            else:
+                y_5=y_3+len_y
+
+            y_l=min(y_3, y_5)
+            y_r=max(y_3, y_5)
+
+            cvg[y_l: y_r]+=1.
+            try:
+
+                if qdY=='':
+
+                    SNP_array[:,y_l:y_r][md_array_Y[5:-5], matched_indices_Y[5:-5]]+=1
+
+                else:
+        ##            try:
+                    mask_ind=set(numpy.asarray(qdY.split(','),int))
+                    con_ind=set(range(0,len(matched_indices_Y)))
+                    if max(mask_ind)>max(con_ind): print max(mask_ind),max(con_ind)
+                    ind= numpy.array(sorted( list( con_ind-mask_ind)))
+                    if len(ind)>10:
+    ##                    SNP_array[:,x_l:x_r][md_array_X[ind[5:-5]], matched_indices_X[ind[5:-5]]]+=1
+                        SNP_array[:,y_l:y_r][md_array_Y[ind[5:-5]], matched_indices_Y[ind[5:-5]]]+=1
+
+            except:
+
+                z=1
+
+        if clust.Seq1==seq_name:
+            parsed_cigX=ParseCIGAR(cigX)
+            len_x=parsed_cigX['D']+parsed_cigX['M']
+            cig_array_X=ExpandCIGAR(cigX)
+            matched_indices_X=numpy.where(cig_array_X[cig_array_X!='I'] =='M')[0]
+            md_array_X=ExpandMD(clust.MD_X[i])
+            if md_array_X=='Failed': continue
+            if quad_1=='+':
+                x_5=x_3-len_x
+            else:
+                x_5=x_3+len_x
+            x_l=min(x_3, x_5)
+            x_r=max(x_3, x_5)
+            cvg[x_l:x_r]+=1.
+
+            if qdX=='':
+
+                try:
+                    SNP_array[:,x_l:x_r][md_array_X[5:-5], matched_indices_X[5:-5]]+=1
+                except:
+                    print md_array_X.shape
+
+                    print matched_indices_X.shape
+                    print SNP_array[:,x_l:x_r+1].shape
+                    print clust.MD_X[i]
+                    print cigX
+                    print '=--------------------------------------------'
 
             else:
-    ##            try:
-                mask_ind=set(numpy.asarray(qdY.split(','),int))
-                con_ind=set(range(0,len(matched_indices_Y)))
-                if max(mask_ind)>max(con_ind): print max(mask_ind),max(con_ind)
+    ##                try:
+                mask_ind=set(numpy.asarray(qdX.split(','),int))
+
+                con_ind=set(range(0,len(matched_indices_X)))
                 ind= numpy.array(sorted( list( con_ind-mask_ind)))
-                if len(ind)>10:
-##                    SNP_array[:,x_l:x_r][md_array_X[ind[5:-5]], matched_indices_X[ind[5:-5]]]+=1
-                    SNP_array[:,y_l:y_r][md_array_Y[ind[5:-5]], matched_indices_Y[ind[5:-5]]]+=1
-
-        except:
-
-            z=1
-
-
-        if qdX=='':
-
-            try:
-                SNP_array[:,x_l:x_r][md_array_X[5:-5], matched_indices_X[5:-5]]+=1
-            except:
-                print md_array_X.shape
-
-                print matched_indices_X.shape
-                print SNP_array[:,x_l:x_r+1].shape
-                print clust.MD_X[i]
-                print cigX
-                print '=--------------------------------------------'
-
-        else:
-##                try:
-            mask_ind=set(numpy.asarray(qdX.split(','),int))
-
-            con_ind=set(range(0,len(matched_indices_X)))
-            ind= numpy.array(sorted( list( con_ind-mask_ind)))
-            if max(mask_ind)>max(con_ind): print max(mask_ind),max(con_ind)
-            try:
-                if len(ind)>10:
-                    SNP_array[:,x_l:x_r][md_array_X[ind[5:-5]], matched_indices_X[ind[5:-5]]]+=1
-            except:
-                print x_l, x_r
-                print clust.MD_X[i]
-                print mask_ind
-                print md_array_X.shape
-                print matched_indices_X.shape
-                print ind.shape
+                if max(mask_ind)>max(con_ind): print max(mask_ind),max(con_ind)
+                try:
+                    if len(ind)>10:
+                        SNP_array[:,x_l:x_r][md_array_X[ind[5:-5]], matched_indices_X[ind[5:-5]]]+=1
+                except:
+                    print x_l, x_r
+                    print clust.MD_X[i]
+                    print mask_ind
+                    print md_array_X.shape
+                    print matched_indices_X.shape
+                    print ind.shape
 
     print count
     print SNP_array.sum()
@@ -1513,9 +1524,13 @@ def main(argv):
             ID_file=param['-id']
             PileupSequencesByIDs(param['-i'], param['-o'], param['-tail'], consfile, ID_file=ID_file)
             return()
+        elif param['-snp']=='all':
+            method='all'
+            ID_file=''
         else:
             method='consensus'
             ID_file=''
+        print method
         PileupConsensusSequences(param['-i'], param['-o'], param['-tail'], consfile, method=method, ID_file=ID_file)
         return()
     sample_dict={}
