@@ -19,7 +19,7 @@ from matplotlib import pyplot
 pyplot.ioff()
 
 import numpy
-##import pandas
+import multiprocessing as mp
 import subprocess
 import scipy
 from Bio import SeqIO
@@ -31,14 +31,19 @@ import pickle
 import shutil
 import os
 from collections import Iterable
-try:
-    from AlignmentPipeline import CallAligner
-    from tools import FindHomology
-##try:
-    from tools import General_Tools
+from functools import partial
 
-except:
-    print "Couldn't import General_Tools"
+##try:
+from AlignmentPipeline import CallAligner
+from tools import FindHomology
+##try:
+from tools import General_Tools
+from tools.InternalRepeats import MaskInternalRepeats
+##from tools.InternalRepeats import SummarizeRepetiveness
+
+
+##except:
+##    print "Couldn't import General_Tools"
 import json
 import scipy.sparse
 from Bio import SeqIO
@@ -50,13 +55,14 @@ import sklearn.neighbors
 from matplotlib import pyplot
 import seaborn
 from itertools import product
-import dict_trie
 from collections import Iterable
 from collections import Counter
 import pickle
 import shutil
 import os
 import time
+
+
 
 
 class SamLine():
@@ -83,7 +89,7 @@ class SamLine():
 #           Full automatic curation pipeline
 #------------------------------------------------------------------------------
 
-def AutomaticCuration(fasta_file, fastq_file, outdir, specification_file):
+def AutomaticCuration(fasta_file, fastq_file, outdir, specification_file,min_ident=.9, threads=6):
 
 
     spec_dict=General_Tools.ReadSpecificationFile(specification_file)
@@ -95,61 +101,130 @@ def AutomaticCuration(fasta_file, fastq_file, outdir, specification_file):
     #unambiguously
     fasta_root=fasta_file.split('/')[-1]
     modified_fasta="{0}/{1}".format(outdir, fasta_root)
-##    LengthenShortRepeats(fasta_file, modified_fasta)
+    LengthenShortRepeats(fasta_file, modified_fasta)
     fasta_file=modified_fasta
     #Run FindHomology
-##    FindHomology.ClusterIndex(fasta_file, outdir+'/00_Communities',spec_dict['BLAST'], 80)
+    FindHomology.ClusterIndex(fasta_file, outdir+'/00_Communities',spec_dict['BLAST'], cutoff=70)
     #Phase communities
-##    PhaseCommunities(outdir+'/00_Communities', True)
+    PhaseCommunities(outdir+'/00_Communities', False)
     #Build Bowtie2 index
     phased_path="{0}/00_Communities_phased/phased_sequences.fa".format(outdir)
-##    BuildIndex(spec_dict['Bowtie2'],phased_path, outdir+"/phased_index" )
-    #Run Bowtie2
 
+    #Mask internal repeats
+    masked_path="{0}/00_Communities_phased/phased_masked_sequences.fa".format(outdir)
+    MaskInternalRepeats(    phased_path, masked_path)
+
+    #Build a bowtie2 index
+    phased_path=masked_path
+    BuildIndex(spec_dict['Bowtie2'],phased_path, outdir+"/phased_index" )
+
+    #Run Bowtie2
     aligned_dir=outdir+'/01_aligned'
     print aligned_dir
     sam_file="{0}/aligned.sam".format(aligned_dir)
     General_Tools.MakeDir(aligned_dir)
     err_file=aligned_dir+'/errlog.txt'
-##    CallAligner(fastq_file,sam_file,outdir+"/phased_index", spec_dict['RepeatAlignmentParameters']+' --no-unal' ,str(int( spec_dict['threads'])),None, bowDir=spec_dict['Bowtie2'])
+    CallAligner(fastq_file,sam_file,outdir+"/phased_index", spec_dict['RepeatAlignmentParameters']+' --no-unal' ,str(int( spec_dict['threads'])),None, bowDir=spec_dict['Bowtie2'])
 ##    err_handle.close()
     #S
     FASTA_file="{0}/aligned.fasta".format(aligned_dir)
-##    Sam2FASTA(sam_file, FASTA_file, 10,50, False, phased_path)
+    Sam2FASTA(sam_file, FASTA_file, 10,50, False, phased_path)
     #Run Blastn
     blast_file="{0}/aligned.csv".format(aligned_dir)
-##    RunBLAST(FASTA_file, phased_path, blast_file)
+    if threads==1:
+        RunBLAST(FASTA_file, phased_path, blast_file)
+    else:
+        ParallelBLAST(FASTA_file, phased_path, blast_file, threads=6)
+
     #Build BLAST matrix
     matrix_file="{0}/aligned_matrix".format(aligned_dir)
-##    BlastToScoreMatrix(blast_file, matrix_file)
+    BlastToScoreMatrix(blast_file, matrix_file)
     matrix_file="{0}/aligned_matrix.npz".format(aligned_dir)
     header_file="{0}/aligned_matrix_headers.pickle".format(aligned_dir)
     comm_file="{0}/00_Communities_phased/communities.txt".format(outdir)
     cur_file="{0}/02_curated".format(outdir)
     #Curate the BLAST matrix
-##    CurateRepeats(fasta_file,comm_file,  matrix_file, header_file,cur_file)
+    CurateRepeats(fasta_file,comm_file,  matrix_file, header_file,cur_file, min_ident=min_ident)
+
     #Return summaries17
     curated_fasta="{0}/02_curated/curated.fa".format(outdir)
+    masked_path="{0}/02_curated/masked_curated.fa".format(outdir)
+    MaskInternalRepeats(curated_fasta, masked_path)
+    curated_fasta=masked_path
+
     curated_index= outdir+"/curated_index"
-##    BuildIndex(spec_dict['Bowtie2'],curated_fasta, curated_index )
+
+    #Now summarize the curated index
+    BuildIndex(spec_dict['Bowtie2'],curated_fasta, curated_index )
+
     curated_sam_file="{0}/curated.sam".format(aligned_dir)
-##    CallAligner(fastq_file,curated_sam_file,curated_index, spec_dict['RepeatAlignmentParameters']+' --no-unal' ,str(int( spec_dict['threads'])),None, bowDir=spec_dict['Bowtie2'])
+    CallAligner(fastq_file,curated_sam_file,curated_index, spec_dict['RepeatAlignmentParameters']+' --no-unal' ,str(int( spec_dict['threads'])),None, bowDir=spec_dict['Bowtie2'])
+
     summary_file=outdir+"/summary.tsv"
-    UpdateMapq(curated_sam_file)
+    UpdateMapq(curated_sam_file, min_ident=min_ident)
     SummarizeSam(curated_sam_file,summary_file, comm_file,fasta_file)
+
 def BuildIndex(bowtie_path, inpath, outpath):
     process=subprocess.Popen([bowtie_path+"-build", inpath, outpath])
     process.communicate()
 
-def RunBLAST(query, subject,outfile):
+def ParallelBLAST(query, subject, outfile, threads=6):
+    #Split FASTA
+    tempfiles=SplitFASTA(query, threads)
+    #RunBLAST
+    pool=mp.Pool(processes=6)
+    AlignQuery=partial(RunBLAST, subject=subject)
+    outfiles=pool.map(AlignQuery, tempfiles.values())
+    #Join the output
+    outhandle=open(outfile, 'w')
+    for output in outfiles:
+        inhandle=open(output, 'r')
+        for line in inhandle:
+            outhandle.write(line)
+        inhandle.close()
+        os.remove(output)
+    pool.close()
+    outhandle.close()
+
+    pass
+def SplitFASTA(infile, split_size=6, flag='temp'):
+    file_dict={}
+    handle_dict={}
+    file_root='.'.join(infile.split('.')[:-1])
+    ext=infile.split('.')[-1]
+
+    for i in range(split_size):
+        temp_name='{0}_{1}_{2}.{3}'.format(file_root, flag, i, ext)
+        file_dict[i]=temp_name
+        handle_dict[i]=open(temp_name, 'w')
+
+    inhandle=open(infile, 'r')
+    read_count=-1
+    for line in inhandle:
+        #It's a new read, so switch files
+        if line[0]=='>':
+            read_count+=1
+        current_file=read_count%split_size
+        handle_dict[current_file].write(line)
+    #close the files
+    inhandle.close()
+    for key in handle_dict.keys():
+        handle_dict[key].close()
+    return file_dict
+
+def RunBLAST(query, subject,outfile=None):
+    if outfile==None:
+        query_root='.'.join(query.split('.')[:-1])
+        outfile=query_root+'_aligned.csv'
     parameters="blastn -dust no -soft_masking false -max_hsps 1 -word_size 11 -evalue .001 -perc_identity 80 -task blastn-short -outfmt".split(' ')
     parameters+=['10 qseqid sseqid qstart qend pident evalue nident mismatch gaps gapopen bitscore']
     parameters+=["-out", '{0}'.format(outfile),"-query", '{0}'.format(query), "-subject", '{0}'.format(subject)]
-    print parameters
+    #print parameters
     proc=subprocess.Popen(parameters)
 ##    print ("Aligning {0} to {1}...".format(inFile, Index ))
 
     proc.communicate()
+    return outfile
 
 
 #------------------------------------------------------------------------------
@@ -185,7 +260,7 @@ def PhaseCommunities(indir, filter_by_internal_rpt=True):
         if f=='singletons.fa': continue
         if f=='phased_sequences.fa': continue
         sequences=GetSeq(phased_folder+'/'+f, True)
-        rpt_scores=[ComputeNeighborDistance(sequences[ key]) for key in sequences]
+        rpt_scores=[SummarizeRepetiveness(sequences[ key]) for key in sequences]
         med_score=numpy.nanmedian(rpt_scores)
         print f
         print "\t", med_score*1.25
@@ -234,7 +309,7 @@ def SequenceToInt(seq):
         int_array[seq_array==nt]=i+1
     return int_array
 
-def ComputeNeighborDistance(sequence,k=20, mismatches=.15, max_sample=400, unbiased=False):
+def SummarizeRepetiveness(sequence,k=20, mismatches=.15, max_sample=400, unbiased=False):
     kmer_dict=CountKMERS(sequence,k, unbiased)
     kmer_list, kmer_counts=zip(* kmer_dict.items())
 
@@ -895,7 +970,7 @@ def DetermineReassignments(original_matrix, bool_array, name_list):
 
 
 
-def CurateRepeats(fasta_file, community_file, blast_output, repeat_names, outdir):
+def CurateRepeats(fasta_file, community_file, blast_output, repeat_names, outdir, min_ident=.85):
     General_Tools.MakeDir(outdir)
     community_dict=ReadCommunityFile(community_file)
 
@@ -940,7 +1015,7 @@ def CurateRepeats(fasta_file, community_file, blast_output, repeat_names, outdir
             match_within_community=best_score==best_score_in_community
             community_matrix=community_matrix[match_within_community,:]
             noncluster_ind=numpy.array( (community_matrix[:,:].sum(1)==0).T)[0]
-            removed_indices,objective_function=RemoveRepeats(community_matrix, cutoff=.85, iterations=len(indices))
+            removed_indices,objective_function=RemoveRepeats(community_matrix, cutoff=min_ident, iterations=len(indices))
 
 
             pyplot.plot(objective_function,c='purple',alpha=.7)
@@ -956,7 +1031,7 @@ def CurateRepeats(fasta_file, community_file, blast_output, repeat_names, outdir
             community_matrix=community_matrix[~noncluster_ind,:]
             community_matrix=numpy.array(community_matrix.todense())
             best_score=numpy.max(Score2PercIdent(community_matrix),1 )
-            community_matrix=community_matrix[best_score>=.85,:]
+            community_matrix=community_matrix[best_score>=min_ident,:]
             if community_matrix.shape[0]*community_matrix.shape[1]<=1e6:
                 numpy.save(outdir+'/{0}_matrix.npy'.format(community), community_matrix)
                 numpy.save(outdir+'/{0}_mask.npy'.format(community), mask_array)
@@ -1136,7 +1211,8 @@ def BlastToScoreMatrix(infile, outfile):
     outhandle_1=open( '{0}_headers.pickle'.format(outbase), 'wb')
     pickle.dump(contig_dict, outhandle_1)
     outhandle_1.close()
-def MAPQ2Prob(mapq):
+def MAPQ2Prob(
+):
     return 1.- 10.**(mapq/-10.)
 
 #------------------------------------------------------------------------
@@ -1337,7 +1413,7 @@ def BlastToMAPQ(infile):
 
     return MAPQs
 
-def UpdateMapq(sam_file,min_ident=.8, ext="tmp", replace=True, mismatch_penalty=5., perc_levels=.05, mismatch_level=3.):
+def UpdateMapq(sam_file,min_ident=.9, ext="tmp", replace=True, mismatch_penalty=5., perc_levels=.05, mismatch_level=3.):
     sam_handle=open(sam_file, 'r')
     sam_table=csv.reader(sam_handle, delimiter='\t')
     sam_base='.'.join(sam_file.split('.')[:-1])
@@ -1356,15 +1432,15 @@ def UpdateMapq(sam_file,min_ident=.8, ext="tmp", replace=True, mismatch_penalty=
         AS=-1
         XS=-1
         line=SamLine(row)
-        read_length=len(line.seq)*2
+        read_length=len(line.seq)
         for col in row[11:]:
             if col[:2]=='AS':
-                AS=read_length+float(col.split(':')[-1])
+                AS=read_length*2+5.*float(col.split(':')[-1])/6.
             if col[:2]=='XS':
-                XS=read_length+float(col.split(':')[-1])
+                XS=read_length*2+5.*float(col.split(':')[-1])/6.
         if XS!=-1:
             try:
-                mapq=MapConf(AS,XS,70,passed= False, mismatch_penalty=mismatch_penalty, perc_levels=perc_levels, mismatch_level=mismatch_level)
+                mapq=MapConf(   AS,XS,read_length,passed= False, mismatch_penalty=mismatch_penalty, perc_levels=perc_levels, mismatch_level=mismatch_level, adaptive=False)
             except:
                 print AS
                 print XS
@@ -1375,7 +1451,13 @@ def UpdateMapq(sam_file,min_ident=.8, ext="tmp", replace=True, mismatch_penalty=
             if percent_identity>=min_ident:
                 row[4]=40
             else:
-                row[4]=0
+                row[4]=-1
+
+        percent_identity=Score2PercIdent(AS, read_length, mismatch_penalty)
+##        print AS, percent_identity
+        if percent_identity<min_ident:
+            row[4]=-1
+##            row[2]='*'
         outtable.writerow(row)
     sam_handle.close()
     outhandle.close()
@@ -1430,12 +1512,12 @@ def FindSecondaryScore(mapq, AS, read_length=70.):
     XS=2*read_length- 5*XS_mismatches
     return XS
 
-def MapConf(AS,XS, read_length=70., passed=True, mismatch_penalty=5., perc_levels=.05, mismatch_level=3.):
+def MapConf(AS,XS, read_length=70., passed=True, mismatch_penalty=5., perc_levels=.05, mismatch_level=3., adaptive=True):
     #Define Mapq in terms of the number of mismatches
     if perc_levels==None:
         perc_levels=mismatch_level/float(read_length)
-    AS_mismatches=(read_length*2-AS)/5.
-    XS_mismatches=(read_length*2-XS)/5.
+    AS_mismatches=(read_length*2-AS)/mismatch_penalty
+    XS_mismatches=(read_length*2-XS)/mismatch_penalty
 
     AS_ident=1.- AS_mismatches/read_length
     XS_ident=1.- XS_mismatches/read_length
@@ -1443,6 +1525,7 @@ def MapConf(AS,XS, read_length=70., passed=True, mismatch_penalty=5., perc_level
         if AS_ident!=XS_ident:
                 best_diff=abs( XS_ident-AS_ident)
                 worst_diff=1.-XS_ident
+                if adaptive==False: worst_diff=best_diff
                 score=best_diff**2/worst_diff
         else:
             score=0
@@ -1455,6 +1538,7 @@ def MapConf(AS,XS, read_length=70., passed=True, mismatch_penalty=5., perc_level
         best_diff[best_diff<0]=0
 
         worst_diff=1.-XS_ident
+        if adaptive==False: worst_diff=best_diff
         score=best_diff* (best_diff  /worst_diff)
         score[numpy.isnan( score)]=0.
         mapq= (score/perc_levels)*10
@@ -1703,13 +1787,14 @@ def SummarizeSam(infile, outfile, community_file, seq_file):
         if rpt_dict.has_key(row[2])==False:
             rpt_dict[row[2]]=[0.,0.]
         mapq=float(row[4])
+        if mapq==-1: continue
         if mapq>=10:
             rpt_dict[row[2]][0]+=1.
         else:
             rpt_dict[row[2]][1]+=1.
     sam_handle.close()
     for key in sorted(rpt_dict.keys()):
-        repitition=ComputeNeighborDistance(sequences[key], unbiased=True)
+        repitition=SummarizeRepetiveness(sequences[key], unbiased=True)
         outtable.writerow([key, inv_communities[key], repitition, rpt_dict[key][0]+rpt_dict[key][1] , rpt_dict[key][0], rpt_dict[key][1]])
     outhandle.close()
 
@@ -2049,6 +2134,9 @@ def main(argv):
         param[argv[i]]= argv[i+1]
     print param
     if param=={}: return()
+    if param.has_key('-mask'):
+        MaskInternalRepeats(param['-mask'], param['-o'])
+        return()
     if param.has_key('-dup'):
         FixDuplicates(param['-dup'])
         return
