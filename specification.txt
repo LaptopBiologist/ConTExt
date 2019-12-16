@@ -1,10 +1,18 @@
 #This file should contain the parameters used by the ConTExt pipeline.
 #ConTExt 
 #Lines beginning in # are comments and provide notes on how to specify the fields in this file. 
-#Lines beginning with $ indicate file paths=
+#Lines beginning with $ indicate strings suchas file paths=
 
 #The default values are the settings I used, provided as an example of a correctly 
 #specified file.
+
+#-----------------------------------------------------------
+#			Parameters for curating a repeat index
+#-----------------------------------------------------------
+
+#BLASTn parameters
+$outfmt="10 qseqid sseqid qstart qend pident evalue nident mismatch gaps gapopen bitscore"
+$BLAST=blastn
 #Reads longer than this will be trimmed from their 3' ends
 %MaxReadLen=70
 
@@ -22,8 +30,10 @@
 #Path to folder where the pipeline can store and access intermediate files
 $Scratch=/data/mpm289/ConTExt_Scratch
 
+@Exclude=B18,ZS29,ZW190,B17,T26A,ZW133,ZW149,_2_1.fq,_2_2.fq
+
 #Path to the Bowtie2 executable
-$Bowtie2=/home/mpm289/bowtie2-2.3.3.1-linux-x86_64/bowtie2
+$Bowtie2=bowtie2
 
 #Path to the Trimmomatic executable
 $Trimmomatic=/home/mpm289/Trimmomatic-0.33/trimmomatic-0.33.jar
@@ -31,13 +41,20 @@ $Trimmomatic=/home/mpm289/Trimmomatic-0.33/trimmomatic-0.33.jar
 #Path to the Samtools execeutable
 $Samtools=/bin/samtools
 
+#
+$AssemblyAlignmentParameters=--score-min L,0,-.64
+
+$RepeatAlignmentParameters=--score-min L,0,-1.5 -L 11 -N 1 -i S,1,.5 -D 100 -R 5
 
 #Path to the Bowtie2 index for masked reference genome
 $AssemblyIndex=/home/mpm289/bowtie2-2.1.0/dmel-r6.01_masked_7_8_16
 #Path to the Bowtie2 index for the set of individual repeats and consensus sequences
-$RepeatIndex=/home/mpm289/bowtie2-2.1.0/ins_and_cons_index_7_8_16
+$RepeatIndex=/home/mpm289/bowtie2-2.1.0/dmel_cons_7-8-16
+#/data2/mpm289/ReferenceGenomes/Dmel_reference/dmel-r6.01_cons_nosat
+#/home/mpm289/bowtie2-2.1.0/ins_and_cons_index_7_8_16
 
-$ConversionTable=/data2/mpm289/ReferenceGenomes/Dmel_reference/ins_and_cons_index_7_8_16.tsv
+$ConversionTable=
+#/data2/mpm289/ReferenceGenomes/Dmel_reference/ins_and_cons_index_7_8_16.tsv
 
 #Path to the reference genome FASTA
 $Ref=/data2/mpm289/ReferenceGenomes/dmel-r6.01_concatenated_7-7-14.fa
